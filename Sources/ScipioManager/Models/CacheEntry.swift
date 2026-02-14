@@ -8,14 +8,28 @@ struct CacheEntry: Identifiable, Hashable, Sendable {
     let lastModified: Date
     let etag: String
 
-    /// Extract the framework name from a cache key like "cache/v1/FrameworkName/hash.zip"
+    /// Extract the framework name from a cache key.
+    /// Handles both formats:
+    ///   - "XCFrameworks/Alamofire/hash.zip"  -> "Alamofire"
+    ///   - "XCFrameworks/.Alamofire.version"   -> "Alamofire"
     var frameworkName: String {
         let parts = key.split(separator: "/")
-        guard parts.count >= 3 else { return key }
-        return String(parts[2])
+        guard parts.count >= 2 else { return key }
+
+        // For 3+ segments like "prefix/Framework/file.zip", the framework is the second-to-last directory
+        if parts.count >= 3 {
+            return String(parts[parts.count - 2])
+        }
+
+        // For 2 segments like "XCFrameworks/.Alamofire.version", extract name from the filename
+        let filename = String(parts.last!)
+        if filename.hasPrefix(".") && filename.hasSuffix(".version") {
+            return String(filename.dropFirst().dropLast(8))
+        }
+        return filename
     }
 
-    /// The hash portion of the key
+    /// The hash/file portion of the key (last path component without .zip)
     var cacheHash: String {
         let parts = key.split(separator: "/")
         guard let last = parts.last else { return "" }
