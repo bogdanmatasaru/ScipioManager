@@ -147,4 +147,41 @@ struct AppConfigTests {
         #expect(settings.storagePrefix == "XCFrameworks/")
         #expect(settings.region == "auto")
     }
+
+    // MARK: - Minimal JSON (partial config with defaults)
+
+    @Test("Minimal JSON with only bucket name fills defaults")
+    func minimalJSON() throws {
+        let json = """
+        {
+            "bucket": { "name": "my-bucket" }
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let config = try decoder.decode(AppConfig.self, from: data)
+
+        #expect(config.scipioPath == nil)
+        #expect(config.bucket.name == "my-bucket")
+        #expect(config.bucket.endpoint == "https://storage.googleapis.com")
+        #expect(config.bucket.storagePrefix == "XCFrameworks/")
+        #expect(config.bucket.region == "auto")
+        #expect(config.hmacKeyFilename == "gcs-hmac.json")
+        #expect(config.derivedDataPrefix == nil)
+        #expect(config.forkOrganizations.isEmpty)
+    }
+
+    @Test("Empty JSON fills all defaults")
+    func emptyJSON() throws {
+        let data = "{}".data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let config = try decoder.decode(AppConfig.self, from: data)
+
+        #expect(config.bucket.name == "")
+        #expect(config.bucket.endpoint == "https://storage.googleapis.com")
+        #expect(config.hmacKeyFilename == "gcs-hmac.json")
+        #expect(config.forkOrganizations.isEmpty)
+    }
 }

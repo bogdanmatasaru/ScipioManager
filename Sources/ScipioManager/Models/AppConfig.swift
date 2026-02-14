@@ -56,6 +56,22 @@ struct AppConfig: Codable, Sendable {
             storagePrefix: "XCFrameworks/",
             region: "auto"
         )
+
+        init(name: String = "", endpoint: String = "https://storage.googleapis.com",
+             storagePrefix: String = "XCFrameworks/", region: String = "auto") {
+            self.name = name
+            self.endpoint = endpoint
+            self.storagePrefix = storagePrefix
+            self.region = region
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+            endpoint = try container.decodeIfPresent(String.self, forKey: .endpoint) ?? "https://storage.googleapis.com"
+            storagePrefix = try container.decodeIfPresent(String.self, forKey: .storagePrefix) ?? "XCFrameworks/"
+            region = try container.decodeIfPresent(String.self, forKey: .region) ?? "auto"
+        }
     }
 
     // MARK: - Defaults
@@ -67,6 +83,25 @@ struct AppConfig: Codable, Sendable {
         derivedDataPrefix: nil,
         forkOrganizations: []
     )
+
+    init(scipioPath: String? = nil, bucket: BucketSettings = .default,
+         hmacKeyFilename: String = "gcs-hmac.json", derivedDataPrefix: String? = nil,
+         forkOrganizations: [String] = []) {
+        self.scipioPath = scipioPath
+        self.bucket = bucket
+        self.hmacKeyFilename = hmacKeyFilename
+        self.derivedDataPrefix = derivedDataPrefix
+        self.forkOrganizations = forkOrganizations
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        scipioPath = try container.decodeIfPresent(String.self, forKey: .scipioPath)
+        bucket = try container.decodeIfPresent(BucketSettings.self, forKey: .bucket) ?? .default
+        hmacKeyFilename = try container.decodeIfPresent(String.self, forKey: .hmacKeyFilename) ?? "gcs-hmac.json"
+        derivedDataPrefix = try container.decodeIfPresent(String.self, forKey: .derivedDataPrefix)
+        forkOrganizations = try container.decodeIfPresent([String].self, forKey: .forkOrganizations) ?? []
+    }
 
     // MARK: - Loading
 
