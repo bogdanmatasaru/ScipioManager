@@ -81,6 +81,17 @@ struct NuclearCleanTests {
         #expect(!result.totalSizeFormatted.isEmpty)
     }
 
+    @Test("nuclearClean with derivedDataPrefix passes prefix to cleanup")
+    func nuclearCleanWithPrefix() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("nuclear-pfx-\(UUID())")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        // This tests that the prefix parameter is accepted without error
+        let result = try LocalCacheService.nuclearClean(scipioDir: tempDir, derivedDataPrefix: "TestApp-")
+        #expect(result.totalSize >= 0)
+    }
+
     // MARK: - cleanCache edge cases
 
     @Test("cleanCache with nested subdirectories")
@@ -118,14 +129,16 @@ struct NuclearCleanTests {
 
     // MARK: - cleanDerivedData safety
 
-    @Test("cleanDerivedData does not crash when no eMAG dirs exist")
-    func cleanDerivedDataNoEMAG() throws {
-        // This tests the safety of the operation - it should gracefully handle
-        // the case where there are no eMAG derived data dirs.
-        // NOTE: This could actually delete real derived data on a dev machine with eMAG,
-        // so we only test the `findDerivedDataDirs` part safely.
+    @Test("cleanDerivedData does not crash when no matching dirs exist")
+    func cleanDerivedDataSafe() throws {
+        // Use a unique prefix that won't match any real dirs
+        let dirs = LocalCacheService.findDerivedDataDirs(prefix: "NoSuchProject-\(UUID())-")
+        #expect(dirs.isEmpty, "Should find no dirs with unique prefix")
+    }
+
+    @Test("findDerivedDataDirs with nil prefix returns without crashing")
+    func findDerivedDataNoPrefix() {
         let dirs = LocalCacheService.findDerivedDataDirs()
-        // Just verify it returns without crashing
         #expect(dirs.count >= 0)
     }
 }

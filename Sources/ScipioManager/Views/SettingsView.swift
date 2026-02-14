@@ -14,6 +14,7 @@ struct SettingsView: View {
             credentialsSection
             bucketConfigSection
             buildInfoSection
+            configInfoSection
         }
         .formStyle(.grouped)
         .navigationTitle("Settings")
@@ -56,7 +57,7 @@ struct SettingsView: View {
                     appState.buildPackageURL = url.appendingPathComponent("Build/Package.swift")
                     appState.frameworksDir = url.appendingPathComponent("Frameworks/XCFrameworks")
                     appState.runnerBinaryURL = url.appendingPathComponent("Runner/.build/arm64-apple-macosx/release/ScipioRunner")
-                    appState.hmacKeyURL = url.appendingPathComponent("gcs-hmac.json")
+                    appState.hmacKeyURL = url.appendingPathComponent(appState.config.hmacKeyFilename)
                 }
                 .buttonStyle(.bordered)
                 Button("Auto-Detect") {
@@ -87,15 +88,25 @@ struct SettingsView: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
 
-                    Text("Ask your iOS team lead for the **gcs-hmac.json** file and place it in the Scipio/ root folder.")
+                    Text("Place a **\(appState.config.hmacKeyFilename)** file in your Scipio/ directory, or set environment variables.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
 
-                    Text("Expected format:")
+                    Text("Expected JSON format:")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
 
                     Text("{ \"accessKeyId\": \"GOOG1E...\", \"secretAccessKey\": \"...\" }")
+                        .font(.system(.caption, design: .monospaced))
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+
+                    Text("Or set environment variables:")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+
+                    Text("SCIPIO_GCS_HMAC_ACCESS_KEY / SCIPIO_GCS_HMAC_SECRET_KEY")
                         .font(.system(.caption, design: .monospaced))
                         .padding(8)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -157,6 +168,30 @@ struct SettingsView: View {
             LabeledContent("Debug Symbols", value: config.debugSymbolsEmbedded ? "Embedded" : "Not Embedded")
             LabeledContent("Library Evolution", value: config.libraryEvolution ? "Enabled" : "Disabled")
             LabeledContent("Swift Version", value: config.swiftVersion)
+        }
+    }
+
+    // MARK: - Config Info
+
+    private var configInfoSection: some View {
+        Section("Configuration File") {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Settings are loaded from `scipio-manager.json` placed next to the app bundle.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                Text("Search locations:")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("1. Next to the .app bundle")
+                    Text("2. Current working directory")
+                    Text("3. ~/.config/scipio-manager/config.json")
+                }
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+            }
         }
     }
 

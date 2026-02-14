@@ -6,17 +6,23 @@ struct PackageParser: Sendable {
     // MARK: - Parsing
 
     /// Parse all dependencies from a Package.swift file.
-    static func parseDependencies(from fileURL: URL) throws -> [ParsedDependency] {
+    static func parseDependencies(
+        from fileURL: URL,
+        forkOrganizations: [String] = []
+    ) throws -> [ParsedDependency] {
         let content = try String(contentsOf: fileURL, encoding: .utf8)
-        return parseDependencies(from: content)
+        return parseDependencies(from: content, forkOrganizations: forkOrganizations)
     }
 
     /// Parse dependencies from Package.swift content string.
-    static func parseDependencies(from content: String) -> [ParsedDependency] {
+    static func parseDependencies(
+        from content: String,
+        forkOrganizations: [String] = []
+    ) -> [ParsedDependency] {
         var dependencies: [ParsedDependency] = []
 
         // Match .package(url: "...", exact: "...") and .package(url: "...", revision: "...")
-        // and .package(url: "...", from: "...")
+        // and .package(url: "...", from: "...") and .package(url: "...", branch: "...")
         let packagePattern = #/\.package\(\s*url:\s*"([^"]+)"\s*,\s*(exact|revision|from|branch):\s*"([^"]+)"\s*\)/#
 
         for match in content.matches(of: packagePattern) {
@@ -24,7 +30,7 @@ struct PackageParser: Sendable {
             let versionType = String(match.2)
             let version = String(match.3)
             let packageName = extractPackageName(from: url)
-            let isCustomFork = url.contains("bogdanmatasaru") || url.contains("alinfarcas")
+            let isCustomFork = isOrganizationFork(url: url, organizations: forkOrganizations)
 
             dependencies.append(ParsedDependency(
                 url: url,
@@ -48,10 +54,8 @@ struct PackageParser: Sendable {
 
         // Merge products into dependencies
         return dependencies.map { dep in
-            var updated = dep
-            // Try matching by package name
             let products = productsByPackage[dep.packageName] ?? []
-            updated = ParsedDependency(
+            return ParsedDependency(
                 url: dep.url,
                 version: dep.version,
                 versionType: dep.versionType,
@@ -59,7 +63,6 @@ struct PackageParser: Sendable {
                 products: products,
                 isCustomFork: dep.isCustomFork
             )
-            return updated
         }
     }
 
@@ -158,5 +161,14 @@ struct PackageParser: Sendable {
             .replacingOccurrences(of: ".git", with: "")
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         return cleaned.components(separatedBy: "/").last ?? url
+    }
+
+    /// Check if a URL belongs to one of the configured fork organizations.
+    static func isOrganizationFork(url: String, organizations: [String]) -> Bool {
+        guard !organizations.isEmpty else { return false }
+        let lowered = url.lowercased()
+        return organizations.contains { org in
+            lowered.contains(org.lowercased())
+        }
     }
 }

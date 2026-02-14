@@ -127,7 +127,10 @@ struct FrameworksView: View {
         }
 
         if let buildPkg = appState.buildPackageURL {
-            dependencies = (try? PackageParser.parseDependencies(from: buildPkg)) ?? []
+            dependencies = (try? PackageParser.parseDependencies(
+                from: buildPkg,
+                forkOrganizations: appState.config.forkOrganizations
+            )) ?? []
 
             frameworks = frameworks.map { fw in
                 var updated = fw

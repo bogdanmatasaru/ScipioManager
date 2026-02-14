@@ -165,7 +165,13 @@ struct LocalCacheServiceExtTests {
     func findDerivedData() {
         // Just ensure it doesn't crash and returns an array
         let dirs = LocalCacheService.findDerivedDataDirs()
-        // May or may not have eMAG derived data
         #expect(dirs.count >= 0) // Just verifying the call succeeds
+    }
+
+    @Test("findDerivedDataDirs with specific prefix")
+    func findDerivedDataWithPrefix() {
+        // A unique prefix that won't match anything
+        let dirs = LocalCacheService.findDerivedDataDirs(prefix: "UniqueTestPrefix-\(UUID())-")
+        #expect(dirs.isEmpty)
     }
 }

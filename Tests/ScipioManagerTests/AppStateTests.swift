@@ -117,7 +117,7 @@ struct AppStateTests {
     @Test("AppState defaults")
     @MainActor
     func defaults() {
-        let state = AppState()
+        let state = AppState(config: .default)
         #expect(state.selectedSection == .dashboard)
         #expect(state.scipioDir == nil)
         #expect(state.buildPackageURL == nil)
@@ -134,7 +134,7 @@ struct AppStateTests {
     @Test("AppState addActivity inserts at front")
     @MainActor
     func addActivity() {
-        let state = AppState()
+        let state = AppState(config: .default)
         state.addActivity("First", type: .info)
         state.addActivity("Second", type: .success)
         #expect(state.recentActivities.count == 2)
@@ -145,7 +145,7 @@ struct AppStateTests {
     @Test("AppState addActivity limits to 50")
     @MainActor
     func addActivityLimit() {
-        let state = AppState()
+        let state = AppState(config: .default)
         for i in 0..<60 {
             state.addActivity("Activity \(i)")
         }
@@ -155,7 +155,7 @@ struct AppStateTests {
     @Test("AppState appendLog and clearLog")
     @MainActor
     func logManagement() {
-        let state = AppState()
+        let state = AppState(config: .default)
         state.appendLog("line1", stream: .stdout)
         state.appendLog("line2", stream: .stderr)
         #expect(state.logLines.count == 2)
@@ -165,6 +165,17 @@ struct AppStateTests {
 
         state.clearLog()
         #expect(state.logLines.isEmpty)
+    }
+
+    @Test("AppState bucket config from AppConfig")
+    @MainActor
+    func bucketConfigFromAppConfig() {
+        var config = AppConfig.default
+        config.bucket.name = "my-test-bucket"
+        config.bucket.region = "us-east1"
+        let state = AppState(config: config)
+        #expect(state.bucketConfig.bucketName == "my-test-bucket")
+        #expect(state.bucketConfig.region == "us-east1")
     }
 
     // MARK: - BuildConfiguration
@@ -182,10 +193,10 @@ struct AppStateTests {
 
     // MARK: - BucketConfig
 
-    @Test("Default bucket config")
+    @Test("Default bucket config has empty bucket name")
     func defaultBucketConfig() {
         let config = BucketConfig.default
-        #expect(config.bucketName == "emag-ios-scipio-cache")
+        #expect(config.bucketName == "")
         #expect(config.endpoint == "https://storage.googleapis.com")
         #expect(config.storagePrefix == "XCFrameworks/")
         #expect(config.region == "auto")

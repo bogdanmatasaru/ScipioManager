@@ -5,10 +5,13 @@ import SwiftUI
 @Observable
 @MainActor
 final class AppState {
+    // MARK: - Configuration
+    let config: AppConfig
+
     // MARK: - Navigation
     var selectedSection: SidebarSection = .dashboard
 
-    // MARK: - Project Paths (auto-detected)
+    // MARK: - Project Paths (auto-detected or configured)
     var scipioDir: URL?
     var buildPackageURL: URL?
     var frameworksDir: URL?
@@ -23,34 +26,66 @@ final class AppState {
     var logLines: [LogLine] = []
     var isRunning = false
     var lastSyncDate: Date?
-    var bucketConfig = BucketConfig.default
+    var bucketConfig: BucketConfig
 
     // MARK: - Activity Log
     var recentActivities: [ActivityEntry] = []
 
     // MARK: - Initialization
 
+    init(config: AppConfig = .load()) {
+        self.config = config
+        self.bucketConfig = BucketConfig(
+            bucketName: config.bucket.name,
+            endpoint: config.bucket.endpoint,
+            storagePrefix: config.bucket.storagePrefix,
+            region: config.bucket.region
+        )
+    }
+
+    /// Detect project paths from config or by scanning common locations.
     func detectProjectPaths() {
-        // Try to detect Scipio directory relative to the executable or user-selected path
+        // Priority 1: Explicit path from config
+        if let configPath = config.scipioPath {
+            let url = URL(fileURLWithPath: configPath)
+            if FileManager.default.fileExists(atPath: url.appendingPathComponent("Build/Package.swift").path) {
+                applyScipioDir(url)
+                return
+            }
+        }
+
+        // Priority 2: Scan parent directories of the app bundle
+        if let bundleDir = Bundle.main.bundleURL.deletingLastPathComponent() as URL? {
+            // Check if the app is inside a Scipio/Tools folder
+            let candidate = bundleDir.deletingLastPathComponent() // Go up from Tools/
+            if FileManager.default.fileExists(atPath: candidate.appendingPathComponent("Build/Package.swift").path) {
+                applyScipioDir(candidate)
+                return
+            }
+        }
+
+        // Priority 3: Scan common locations
+        let home = URL(fileURLWithPath: NSHomeDirectory())
         let candidates = [
-            // Running from within the eMAG project
             URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent("Scipio"),
-            // Common development path
-            URL(fileURLWithPath: NSHomeDirectory())
-                .appendingPathComponent("Projects/eMAG/Scipio"),
+            home.appendingPathComponent("Developer/Scipio"),
         ]
 
         for candidate in candidates {
             if FileManager.default.fileExists(atPath: candidate.appendingPathComponent("Build/Package.swift").path) {
-                scipioDir = candidate
-                buildPackageURL = candidate.appendingPathComponent("Build/Package.swift")
-                frameworksDir = candidate.appendingPathComponent("Frameworks/XCFrameworks")
-                runnerBinaryURL = candidate.appendingPathComponent("Runner/.build/arm64-apple-macosx/release/ScipioRunner")
-                hmacKeyURL = candidate.appendingPathComponent("gcs-hmac.json")
+                applyScipioDir(candidate)
                 return
             }
         }
+    }
+
+    private func applyScipioDir(_ url: URL) {
+        scipioDir = url
+        buildPackageURL = url.appendingPathComponent("Build/Package.swift")
+        frameworksDir = url.appendingPathComponent("Frameworks/XCFrameworks")
+        runnerBinaryURL = url.appendingPathComponent("Runner/.build/arm64-apple-macosx/release/ScipioRunner")
+        hmacKeyURL = url.appendingPathComponent(config.hmacKeyFilename)
     }
 
     func addActivity(_ message: String, type: ActivityEntry.ActivityType = .info) {

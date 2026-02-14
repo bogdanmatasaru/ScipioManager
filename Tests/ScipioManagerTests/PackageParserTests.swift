@@ -15,8 +15,8 @@ struct PackageParserTests {
         dependencies: [
             .package(url: "https://github.com/ReactiveX/RxSwift.git", exact: "6.10.1"),
             .package(url: "https://github.com/Alamofire/Alamofire.git", exact: "5.11.1"),
-            .package(url: "https://github.com/bogdanmatasaru/AMPopTip.git", exact: "4.5.4"),
-            .package(url: "https://github.com/bogdanmatasaru/ClusterKit", revision: "be4c9991358b"),
+            .package(url: "https://github.com/my-org/AMPopTip.git", exact: "4.5.4"),
+            .package(url: "https://github.com/my-org/ClusterKit", revision: "be4c9991358b"),
         ],
         targets: [
             .target(
@@ -52,14 +52,24 @@ struct PackageParserTests {
         #expect(clusterKit?.versionType == .revision)
     }
 
-    @Test("Detects custom forks")
+    @Test("Detects custom forks with organizations")
     func detectForks() {
-        let deps = PackageParser.parseDependencies(from: samplePackage)
+        let deps = PackageParser.parseDependencies(
+            from: samplePackage,
+            forkOrganizations: ["my-org"]
+        )
         let amPopTip = deps.first { $0.packageName == "AMPopTip" }
         #expect(amPopTip?.isCustomFork == true)
 
         let alamofire = deps.first { $0.packageName == "Alamofire" }
         #expect(alamofire?.isCustomFork == false)
+    }
+
+    @Test("No forks detected when organizations empty")
+    func noForksWhenEmpty() {
+        let deps = PackageParser.parseDependencies(from: samplePackage)
+        let forks = deps.filter(\.isCustomFork)
+        #expect(forks.isEmpty, "No forks should be detected without organizations")
     }
 
     @Test("Finds correct product count")
@@ -82,7 +92,7 @@ struct PackageParserTests {
     func packageNameExtraction() {
         #expect(PackageParser.extractPackageName(from: "https://github.com/ReactiveX/RxSwift.git") == "RxSwift")
         #expect(PackageParser.extractPackageName(from: "https://github.com/Alamofire/Alamofire.git") == "Alamofire")
-        #expect(PackageParser.extractPackageName(from: "https://github.com/bogdanmatasaru/AMPopTip") == "AMPopTip")
+        #expect(PackageParser.extractPackageName(from: "https://github.com/my-org/AMPopTip") == "AMPopTip")
         #expect(PackageParser.extractPackageName(from: "https://github.com/foo/bar-baz.git") == "bar-baz")
     }
 
@@ -96,5 +106,21 @@ struct PackageParserTests {
 
         let from = ParsedDependency(url: "", version: "2.0.0", versionType: .from, packageName: "", products: [], isCustomFork: false)
         #expect(from.displayVersion == ">= 2.0.0")
+    }
+
+    @Test("isOrganizationFork checks case-insensitively")
+    func forkCaseInsensitive() {
+        #expect(PackageParser.isOrganizationFork(
+            url: "https://github.com/MyOrg/lib.git",
+            organizations: ["myorg"]
+        ))
+    }
+
+    @Test("isOrganizationFork with empty org list")
+    func forkEmptyOrgs() {
+        #expect(!PackageParser.isOrganizationFork(
+            url: "https://github.com/some/lib.git",
+            organizations: []
+        ))
     }
 }

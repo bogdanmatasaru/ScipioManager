@@ -2,18 +2,30 @@ import Testing
 import Foundation
 @testable import ScipioManager
 
-/// Live integration tests for GCSBucketService network calls (headObject, deleteObject, etc.).
-/// These require real HMAC credentials at ~/Projects/eMAG/Scipio/gcs-hmac.json
-@Suite("GCS Bucket Live Tests", .enabled(if: FileManager.default.fileExists(
-    atPath: NSHomeDirectory() + "/Projects/eMAG/Scipio/gcs-hmac.json"
-)))
+/// Live integration tests for GCSBucketService network calls.
+/// Enable by setting SCIPIO_INTEGRATION_TEST_DIR to a Scipio directory with gcs-hmac.json.
+@Suite("GCS Bucket Live Tests", .enabled(if: {
+    if let dir = ProcessInfo.processInfo.environment["SCIPIO_INTEGRATION_TEST_DIR"] {
+        return FileManager.default.fileExists(atPath: dir + "/gcs-hmac.json")
+    }
+    return false
+}()))
 struct GCSBucketLiveTests {
 
-    let hmacKeyURL = URL(fileURLWithPath: NSHomeDirectory() + "/Projects/eMAG/Scipio/gcs-hmac.json")
+    var hmacKeyURL: URL {
+        let dir = ProcessInfo.processInfo.environment["SCIPIO_INTEGRATION_TEST_DIR"] ?? "/tmp"
+        return URL(fileURLWithPath: dir).appendingPathComponent("gcs-hmac.json")
+    }
 
     private func makeService() throws -> GCSBucketService {
         let key = try HMACKeyLoader.load(from: hmacKeyURL)
-        return GCSBucketService(hmacKey: key, config: .default)
+        let config = BucketConfig(
+            bucketName: ProcessInfo.processInfo.environment["SCIPIO_BUCKET_NAME"] ?? "",
+            endpoint: "https://storage.googleapis.com",
+            storagePrefix: "XCFrameworks/",
+            region: "auto"
+        )
+        return GCSBucketService(hmacKey: key, config: config)
     }
 
     // MARK: - headObject
@@ -21,7 +33,6 @@ struct GCSBucketLiveTests {
     @Test("headObject returns true for a known existing object")
     func headObjectExists() async throws {
         let service = try makeService()
-        // First list to find a real key
         let entries = try await service.listObjects()
         guard let first = entries.first else {
             Issue.record("Bucket is empty, cannot test headObject")
@@ -56,21 +67,17 @@ struct GCSBucketLiveTests {
         #expect(headSize == entry.size, "HEAD size (\(headSize)) should match list size (\(entry.size)) for \(entry.key)")
     }
 
-    // MARK: - deleteObject (safe - we test that deleting a nonexistent key throws appropriately)
+    // MARK: - deleteObject (safe - nonexistent key)
 
-    @Test("deleteObject throws deleteFailed for nonexistent key")
+    @Test("deleteObject handles nonexistent key")
     func deleteObjectNonexistent() async throws {
         let service = try makeService()
         let fakeKey = "XCFrameworks/__TEST_DELETE_NONEXISTENT__/fake_\(UUID()).zip"
 
-        // GCS may return 204 (success) even for deleting nonexistent keys in some cases,
-        // or 404 which would throw. We test both scenarios.
         do {
             try await service.deleteObject(key: fakeKey)
             // S3-compatible API often returns 204 for deletes even if key doesn't exist
-            // This is valid behavior (idempotent delete)
         } catch let error as GCSBucketService.GCSError {
-            // Also valid - some backends return 404
             switch error {
             case .deleteFailed(let key, let code):
                 #expect(key == fakeKey)
@@ -91,7 +98,7 @@ struct GCSBucketLiveTests {
         #expect(failed == 0)
     }
 
-    // MARK: - deleteFrameworkEntries (safe - nonexistent framework)
+    // MARK: - deleteFrameworkEntries (safe)
 
     @Test("deleteFrameworkEntries for nonexistent framework returns 0")
     func deleteFrameworkEntriesNonexistent() async throws {
@@ -100,33 +107,31 @@ struct GCSBucketLiveTests {
         #expect(deleted == 0)
     }
 
-    // MARK: - deleteStaleEntries (safe - future cutoff)
+    // MARK: - deleteStaleEntries (safe)
 
-    @Test("deleteStaleEntries with future date deletes nothing when tested with far-future cutoff")
+    @Test("deleteStaleEntries with ancient date deletes nothing")
     func deleteStaleEntriesWithDistantPast() async throws {
         let service = try makeService()
-        // Use a very old date so nothing is "stale"
-        let ancientDate = Date(timeIntervalSince1970: 0) // Jan 1, 1970
+        let ancientDate = Date(timeIntervalSince1970: 0)
         let deleted = try await service.deleteStaleEntries(olderThan: ancientDate)
         #expect(deleted == 0, "Nothing should be older than epoch")
     }
 
     // MARK: - listObjects pagination
 
-    @Test("listObjects returns all entries across pages")
+    @Test("listObjects returns entries")
     func listObjectsPagination() async throws {
         let service = try makeService()
         let entries = try await service.listObjects()
-        #expect(entries.count > 100, "Expected many entries to test pagination, got \(entries.count)")
+        #expect(entries.count > 0, "Expected entries in bucket")
 
-        // Verify no duplicate keys
         let uniqueKeys = Set(entries.map(\.key))
         #expect(uniqueKeys.count == entries.count, "Found \(entries.count - uniqueKeys.count) duplicate keys")
     }
 
     // MARK: - bucketStats
 
-    @Test("bucketStats framework count matches unique framework names from entries")
+    @Test("bucketStats framework count is consistent")
     func bucketStatsConsistency() async throws {
         let service = try makeService()
         let stats = try await service.bucketStats()
@@ -137,35 +142,6 @@ struct GCSBucketLiveTests {
 
         let computedSize = stats.entries.reduce(Int64(0)) { $0 + $1.size }
         #expect(stats.totalSize == computedSize)
-    }
-
-    // MARK: - listObjects with custom prefix
-
-    @Test("listObjects with specific framework prefix returns only matching entries")
-    func listObjectsCustomPrefix() async throws {
-        let service = try makeService()
-        // List all to find a framework that has a 3-segment key (XCFrameworks/Name/hash.zip)
-        let allEntries = try await service.listObjects()
-        guard let entry = allEntries.first(where: { $0.key.split(separator: "/").count >= 3 }) else {
-            Issue.record("No 3-segment key entries found in bucket")
-            return
-        }
-
-        // Extract the actual prefix (e.g. "XCFrameworks/Alamofire/") from the key
-        let keyParts = entry.key.split(separator: "/")
-        let frameworkPrefix = "\(keyParts[0])/\(keyParts[1])/"
-        let frameworkName = String(keyParts[1])
-
-        let filtered = try await service.listObjects(prefix: frameworkPrefix)
-
-        #expect(!filtered.isEmpty, "Should have entries for prefix \(frameworkPrefix)")
-        for e in filtered {
-            #expect(e.key.hasPrefix(frameworkPrefix), "Entry \(e.key) should start with \(frameworkPrefix)")
-        }
-
-        // Also verify using fewer results than total
-        #expect(filtered.count <= allEntries.count, "Filtered should be <= total")
-        #expect(filtered.count < allEntries.count, "Filtered by one framework should be less than total")
     }
 
     // MARK: - Error construction

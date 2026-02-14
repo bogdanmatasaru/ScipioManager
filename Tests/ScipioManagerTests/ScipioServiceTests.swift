@@ -5,8 +5,6 @@ import Foundation
 @Suite("Scipio Service Tests")
 struct ScipioServiceTests {
 
-    let realScipioDir = URL(fileURLWithPath: NSHomeDirectory() + "/Projects/eMAG/Scipio")
-
     // MARK: - SyncMode
 
     @Test("SyncMode raw values")
@@ -48,33 +46,7 @@ struct ScipioServiceTests {
         #expect(syncError.localizedDescription.contains("65"))
     }
 
-    // MARK: - Framework Discovery (with real project)
-
-    @Test("Framework count from real project", .enabled(if: FileManager.default.fileExists(atPath: NSHomeDirectory() + "/Projects/eMAG/Scipio/Frameworks/XCFrameworks")))
-    func realFrameworkCount() async {
-        let service = ScipioService(scipioDir: realScipioDir)
-        let count = await service.frameworkCount()
-        #expect(count >= 80)
-    }
-
-    @Test("Discover frameworks returns sorted list", .enabled(if: FileManager.default.fileExists(atPath: NSHomeDirectory() + "/Projects/eMAG/Scipio/Frameworks/XCFrameworks")))
-    func sortedFrameworks() async throws {
-        let service = ScipioService(scipioDir: realScipioDir)
-        let frameworks = try await service.discoverFrameworks()
-        for i in 1..<frameworks.count {
-            let cmp = frameworks[i - 1].name.localizedCaseInsensitiveCompare(frameworks[i].name)
-            #expect(cmp == .orderedAscending || cmp == .orderedSame, "\(frameworks[i - 1].name) should come before \(frameworks[i].name)")
-        }
-    }
-
-    @Test("Discovered frameworks have size > 0", .enabled(if: FileManager.default.fileExists(atPath: NSHomeDirectory() + "/Projects/eMAG/Scipio/Frameworks/XCFrameworks")))
-    func frameworksHaveSize() async throws {
-        let service = ScipioService(scipioDir: realScipioDir)
-        let frameworks = try await service.discoverFrameworks()
-        for fw in frameworks {
-            #expect(fw.sizeBytes > 0, "\(fw.name) has size 0")
-        }
-    }
+    // MARK: - Framework Discovery (with temp dirs)
 
     @Test("Runner existence check with fake dir")
     func runnerExistsFakeDir() async {
@@ -111,5 +83,25 @@ struct ScipioServiceTests {
         let service = ScipioService(scipioDir: tempDir)
         let frameworks = try await service.discoverFrameworks()
         #expect(frameworks.isEmpty)
+    }
+
+    @Test("Discover frameworks finds xcframeworks with slices")
+    func discoverFrameworksWithSlices() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("ScipioTests-\(UUID())")
+        let fwDir = tempDir.appendingPathComponent("Frameworks/XCFrameworks")
+        let xcfw = fwDir.appendingPathComponent("TestLib.xcframework")
+        let fm = FileManager.default
+
+        try fm.createDirectory(at: xcfw.appendingPathComponent("ios-arm64"), withIntermediateDirectories: true)
+        try fm.createDirectory(at: xcfw.appendingPathComponent("ios-arm64_x86_64-simulator"), withIntermediateDirectories: true)
+        try "plist".write(to: xcfw.appendingPathComponent("Info.plist"), atomically: true, encoding: .utf8)
+
+        defer { try? fm.removeItem(at: tempDir) }
+
+        let service = ScipioService(scipioDir: tempDir)
+        let frameworks = try await service.discoverFrameworks()
+        #expect(frameworks.count == 1)
+        #expect(frameworks.first?.name == "TestLib")
+        #expect(frameworks.first?.slices.count == 2)
     }
 }

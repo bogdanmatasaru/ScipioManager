@@ -124,29 +124,6 @@ struct BuildRunnerTests {
         #expect(hasInfoLog, "Should have emitted build/sync log lines")
     }
 
-    // MARK: - Real buildRunner (only if the project exists)
-
-    @Test("buildRunner succeeds with real project",
-          .enabled(if: FileManager.default.fileExists(
-              atPath: NSHomeDirectory() + "/Projects/eMAG/Scipio/Runner/Package.swift")))
-    func buildRunnerReal() async throws {
-        let scipioDir = URL(fileURLWithPath: NSHomeDirectory() + "/Projects/eMAG/Scipio")
-        let service = ScipioService(scipioDir: scipioDir)
-        let captured = IsolatedLines()
-
-        try await service.buildRunner { line, _ in
-            captured.append(line)
-        }
-
-        let allLines = captured.lines
-        let hasSuccess = allLines.contains { $0.contains("successfully") }
-        #expect(hasSuccess, "Should report successful build")
-
-        // Runner should now exist
-        let exists = await service.runnerExists
-        #expect(exists, "Runner binary should exist after build")
-    }
-
     // MARK: - SyncResult formatting edge cases
 
     @Test("SyncResult elapsed formatting boundary at 60s")

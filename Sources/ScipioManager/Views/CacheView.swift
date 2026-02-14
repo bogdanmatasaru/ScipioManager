@@ -64,9 +64,9 @@ struct CacheView: View {
                 layerRow(
                     number: "3",
                     name: "GCS Remote",
-                    detail: "emag-ios-scipio-cache",
+                    detail: appState.bucketConfig.bucketName.isEmpty ? "Not configured" : appState.bucketConfig.bucketName,
                     size: "Cloud",
-                    isPresent: true
+                    isPresent: !appState.bucketConfig.bucketName.isEmpty
                 )
             }
             .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -182,7 +182,10 @@ struct CacheView: View {
     private func performNuclearClean() async {
         guard let scipioDir = appState.scipioDir else { return }
         do {
-            let result = try LocalCacheService.nuclearClean(scipioDir: scipioDir)
+            let result = try LocalCacheService.nuclearClean(
+                scipioDir: scipioDir,
+                derivedDataPrefix: appState.config.derivedDataPrefix
+            )
             appState.addActivity("Nuclear clean: freed \(result.totalSizeFormatted)", type: .success)
             loadCaches()
         } catch {

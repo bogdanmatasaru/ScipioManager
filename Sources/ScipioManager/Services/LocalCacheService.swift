@@ -74,15 +74,22 @@ struct LocalCacheService: Sendable {
         }
     }
 
-    /// Find all eMAG DerivedData directories.
-    static func findDerivedDataDirs() -> [URL] {
+    /// Find project-specific DerivedData directories by prefix.
+    ///
+    /// - Parameter prefix: The DerivedData folder prefix for the project (e.g., `"MyApp-"`).
+    ///   If `nil`, returns all DerivedData directories.
+    static func findDerivedDataDirs(prefix: String? = nil) -> [URL] {
         let derivedData = URL(fileURLWithPath: NSHomeDirectory())
             .appendingPathComponent("Library/Developer/Xcode/DerivedData")
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: derivedData,
             includingPropertiesForKeys: nil
         ) else { return [] }
-        return contents.filter { $0.lastPathComponent.hasPrefix("eMag-") }
+
+        if let prefix = prefix {
+            return contents.filter { $0.lastPathComponent.hasPrefix(prefix) }
+        }
+        return contents.filter { $0.lastPathComponent != "ModuleCache.noindex" }
     }
 
     // MARK: - Cleanup Operations
@@ -103,9 +110,11 @@ struct LocalCacheService: Sendable {
         return size
     }
 
-    /// Delete DerivedData for eMAG.
-    static func cleanDerivedData() throws -> Int64 {
-        let dirs = findDerivedDataDirs()
+    /// Delete project-specific DerivedData directories.
+    ///
+    /// - Parameter prefix: The DerivedData folder prefix. If `nil`, cleans all DerivedData.
+    static func cleanDerivedData(prefix: String? = nil) throws -> Int64 {
+        let dirs = findDerivedDataDirs(prefix: prefix)
         var totalSize: Int64 = 0
         for dir in dirs {
             totalSize += directorySize(dir)
@@ -115,11 +124,11 @@ struct LocalCacheService: Sendable {
     }
 
     /// Nuclear clean: wipe everything.
-    static func nuclearClean(scipioDir: URL) throws -> NuclearCleanResult {
+    static func nuclearClean(scipioDir: URL, derivedDataPrefix: String? = nil) throws -> NuclearCleanResult {
         var result = NuclearCleanResult()
 
         // 1. DerivedData
-        if let size = try? cleanDerivedData() {
+        if let size = try? cleanDerivedData(prefix: derivedDataPrefix) {
             result.derivedDataSize = size
         }
 

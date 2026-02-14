@@ -56,7 +56,7 @@ struct BucketConfig: Sendable, Codable {
     var region: String
 
     static let `default` = BucketConfig(
-        bucketName: "emag-ios-scipio-cache",
+        bucketName: "",
         endpoint: "https://storage.googleapis.com",
         storagePrefix: "XCFrameworks/",
         region: "auto"
