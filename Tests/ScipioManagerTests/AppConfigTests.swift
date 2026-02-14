@@ -126,7 +126,7 @@ struct AppConfigTests {
 
     // MARK: - Sample JSON
 
-    @Test("Sample JSON is valid JSON")
+    @Test("Minimal sample JSON is valid and contains only bucket")
     func sampleJSON() throws {
         let sample = AppConfig.sampleJSON
         #expect(!sample.isEmpty)
@@ -134,7 +134,22 @@ struct AppConfigTests {
         let data = sample.data(using: .utf8)!
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         #expect(json != nil)
+        #expect(json?["bucket"] != nil)
+        // Minimal sample should NOT contain optional fields
+        #expect(json?["scipio_path"] == nil)
+        #expect(json?["derived_data_prefix"] == nil)
+    }
+
+    @Test("Full sample JSON includes all fields")
+    func fullSampleJSON() throws {
+        let sample = AppConfig.fullSampleJSON
+        #expect(!sample.isEmpty)
+
+        let data = sample.data(using: .utf8)!
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        #expect(json != nil)
         #expect(json?["scipio_path"] != nil)
+        #expect(json?["derived_data_prefix"] != nil)
     }
 
     // MARK: - BucketSettings defaults

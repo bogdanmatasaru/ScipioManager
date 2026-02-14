@@ -178,6 +178,76 @@ struct AppStateTests {
         #expect(state.bucketConfig.region == "us-east1")
     }
 
+    // MARK: - Resolved DerivedData Prefix
+
+    @Test("resolvedDerivedDataPrefix returns nil when no scipioDir")
+    @MainActor
+    func resolvedPrefixNil() {
+        let state = AppState(config: .default)
+        #expect(state.resolvedDerivedDataPrefix == nil)
+    }
+
+    @Test("resolvedDerivedDataPrefix uses explicit config when set")
+    @MainActor
+    func resolvedPrefixExplicit() {
+        var config = AppConfig.default
+        config.derivedDataPrefix = "Explicit-"
+        let state = AppState(config: config)
+        state.scipioDir = URL(fileURLWithPath: "/tmp")
+        #expect(state.resolvedDerivedDataPrefix == "Explicit-")
+    }
+
+    @Test("resolvedDerivedDataPrefix auto-detects from xcworkspace")
+    @MainActor
+    func resolvedPrefixWorkspace() throws {
+        // Create a temp project structure: /tmp/TestProject/Scipio + MyApp.xcworkspace
+        let projectRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TestProject-\(UUID())")
+        let scipioDir = projectRoot.appendingPathComponent("Scipio")
+        let workspace = projectRoot.appendingPathComponent("MyApp.xcworkspace")
+        try FileManager.default.createDirectory(at: scipioDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: projectRoot) }
+
+        let state = AppState(config: .default)
+        state.scipioDir = scipioDir
+        #expect(state.resolvedDerivedDataPrefix == "MyApp-")
+    }
+
+    @Test("resolvedDerivedDataPrefix falls back to xcodeproj")
+    @MainActor
+    func resolvedPrefixProject() throws {
+        let projectRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TestProject-\(UUID())")
+        let scipioDir = projectRoot.appendingPathComponent("Scipio")
+        let project = projectRoot.appendingPathComponent("MyProject.xcodeproj")
+        try FileManager.default.createDirectory(at: scipioDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: projectRoot) }
+
+        let state = AppState(config: .default)
+        state.scipioDir = scipioDir
+        #expect(state.resolvedDerivedDataPrefix == "MyProject-")
+    }
+
+    @Test("resolvedDerivedDataPrefix prefers xcworkspace over xcodeproj")
+    @MainActor
+    func resolvedPrefixPreference() throws {
+        let projectRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TestProject-\(UUID())")
+        let scipioDir = projectRoot.appendingPathComponent("Scipio")
+        let workspace = projectRoot.appendingPathComponent("AppWorkspace.xcworkspace")
+        let project = projectRoot.appendingPathComponent("AppProject.xcodeproj")
+        try FileManager.default.createDirectory(at: scipioDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: projectRoot) }
+
+        let state = AppState(config: .default)
+        state.scipioDir = scipioDir
+        #expect(state.resolvedDerivedDataPrefix == "AppWorkspace-")
+    }
+
     // MARK: - BuildConfiguration
 
     @Test("Current build configuration values")

@@ -48,6 +48,23 @@ struct SettingsView: View {
                 )
             }
 
+            LabeledContent("DerivedData Prefix") {
+                if let prefix = appState.resolvedDerivedDataPrefix {
+                    HStack(spacing: 4) {
+                        Text(prefix)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        Text("(auto-detected)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                } else {
+                    Text("Not detected")
+                        .font(.caption)
+                        .foregroundStyle(.quaternary)
+                }
+            }
+
             HStack {
                 TextField("Scipio path", text: $customScipioPath, prompt: Text("/path/to/Scipio"))
                     .textFieldStyle(.roundedBorder)

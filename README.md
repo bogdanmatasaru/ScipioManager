@@ -120,6 +120,7 @@ One-click scan that verifies 8 checks across 4 categories:
 ### Settings — Full configuration visibility
 View and adjust:
 - Scipio directory path (manual or auto-detect)
+- DerivedData prefix (auto-detected from `.xcworkspace`/`.xcodeproj`)
 - GCS credentials status
 - Bucket configuration (name, endpoint, prefix, region)
 - Build configuration (release/debug, static/dynamic)
@@ -141,7 +142,18 @@ swift build -c release --arch arm64 --arch x86_64
 
 ### 2. Configure
 
-Create a `scipio-manager.json` file next to the `.app` bundle:
+Create a `scipio-manager.json` file next to the `.app` bundle. **Only `bucket.name` is required** — everything else is auto-detected:
+
+```json
+{
+  "bucket": {
+    "name": "your-bucket-name"
+  }
+}
+```
+
+<details>
+<summary>Full config with all options (all optional except <code>bucket.name</code>)</summary>
 
 ```json
 {
@@ -157,6 +169,7 @@ Create a `scipio-manager.json` file next to the `.app` bundle:
   "fork_organizations": ["your-org"]
 }
 ```
+</details>
 
 ### 3. Launch
 
@@ -182,7 +195,7 @@ Scipio Manager searches for `scipio-manager.json` in this order:
 | `bucket.storage_prefix` | `String` | No | Object key prefix in the bucket. Default: `XCFrameworks/` |
 | `bucket.region` | `String` | No | Bucket region. Default: `auto` |
 | `hmac_key_filename` | `String` | No | Name of the HMAC JSON credential file in your Scipio directory. Default: `gcs-hmac.json` |
-| `derived_data_prefix` | `String` | No | Xcode DerivedData folder prefix for targeted cleanup (e.g., `MyApp-`). If omitted, cleans all DerivedData. |
+| `derived_data_prefix` | `String` | No | Override for DerivedData folder prefix (e.g., `MyApp-`). **Auto-detected** from your `.xcworkspace` or `.xcodeproj` name. Only needed if auto-detection picks the wrong project. |
 | `fork_organizations` | `[String]` | No | GitHub usernames/orgs — dependencies from these repos get a "Fork" badge in the Frameworks view. |
 
 ### HMAC Credentials
@@ -272,7 +285,7 @@ ScipioManager/
 ## Testing
 
 ```bash
-# Run all unit tests (232+ tests)
+# Run all unit tests (240+ tests)
 swift test
 
 # Run with verbose output
@@ -291,7 +304,7 @@ swift test
 
 | Area | Tests | Coverage |
 |:-----|------:|:---------|
-| AppConfig (loading, defaults, search paths) | 12 | ~100% |
+| AppConfig (loading, defaults, search paths) | 14 | ~100% |
 | PackageParser (dependencies, versions, forks) | 18 | ~100% |
 | LocalCacheService (discovery, cleanup, sizes) | 24 | ~100% |
 | S3Signer (canonical requests, signing) | 15 | ~100% |
@@ -301,7 +314,7 @@ swift test
 | ScipioService | 10 | ~100% |
 | HMACKeyLoader | 8 | ~100% |
 | Integration (live project + GCS) | 12 | Conditional |
-| **Total** | **232+** | **~98%** |
+| **Total** | **240+** | **~98%** |
 
 ---
 
@@ -381,7 +394,7 @@ Yes. If no config file is found, the app attempts to auto-detect your Scipio dir
 <details>
 <summary><strong>How does "Nuclear Clean" work?</strong></summary>
 
-Nuclear Clean removes all Scipio-related caches in one action: Project XCFrameworks, Local Disk cache, Xcode DerivedData (filtered by your `derived_data_prefix`), SPM Cache, SPM Artifacts, ScipioRunner build artifacts, and SourcePackages. It does **not** touch the remote GCS bucket.
+Nuclear Clean removes all Scipio-related caches in one action: Project XCFrameworks, Local Disk cache, Xcode DerivedData (auto-filtered by your project name), SPM Cache, SPM Artifacts, ScipioRunner build artifacts, and SourcePackages. It does **not** touch the remote GCS bucket.
 </details>
 
 ---
@@ -390,7 +403,7 @@ Nuclear Clean removes all Scipio-related caches in one action: Project XCFramewo
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Run the tests (`swift test`) — all 232+ tests must pass
+3. Run the tests (`swift test`) — all 240+ tests must pass
 4. Commit your changes with a descriptive message
 5. Push to the branch and open a Pull Request
 

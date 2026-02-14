@@ -88,6 +88,39 @@ final class AppState {
         hmacKeyURL = url.appendingPathComponent(config.hmacKeyFilename)
     }
 
+    /// Auto-detect the DerivedData folder prefix for this project.
+    ///
+    /// Resolution order:
+    /// 1. Explicit `derived_data_prefix` from config (override)
+    /// 2. Name of the first `.xcworkspace` found next to the Scipio directory
+    /// 3. Name of the first `.xcodeproj` found next to the Scipio directory
+    /// 4. `nil` — all DerivedData folders are eligible for cleanup
+    var resolvedDerivedDataPrefix: String? {
+        // 1. Explicit config override
+        if let explicit = config.derivedDataPrefix {
+            return explicit
+        }
+        // 2. Auto-detect from Xcode workspace/project in parent of scipioDir
+        guard let scipioDir = scipioDir else { return nil }
+        let projectRoot = scipioDir.deletingLastPathComponent()
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(
+            at: projectRoot,
+            includingPropertiesForKeys: nil,
+            options: .skipsHiddenFiles
+        ) else { return nil }
+
+        // Prefer .xcworkspace (Xcode uses the workspace name for DerivedData)
+        if let workspace = contents.first(where: { $0.pathExtension == "xcworkspace" }) {
+            return workspace.deletingPathExtension().lastPathComponent + "-"
+        }
+        // Fall back to .xcodeproj
+        if let project = contents.first(where: { $0.pathExtension == "xcodeproj" }) {
+            return project.deletingPathExtension().lastPathComponent + "-"
+        }
+        return nil
+    }
+
     func addActivity(_ message: String, type: ActivityEntry.ActivityType = .info) {
         let entry = ActivityEntry(message: message, type: type, timestamp: Date())
         recentActivities.insert(entry, at: 0)

@@ -184,7 +184,7 @@ struct CacheView: View {
         do {
             let result = try LocalCacheService.nuclearClean(
                 scipioDir: scipioDir,
-                derivedDataPrefix: appState.config.derivedDataPrefix
+                derivedDataPrefix: appState.resolvedDerivedDataPrefix
             )
             appState.addActivity("Nuclear clean: freed \(result.totalSizeFormatted)", type: .success)
             loadCaches()

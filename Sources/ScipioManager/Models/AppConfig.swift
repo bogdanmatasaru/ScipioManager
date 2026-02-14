@@ -2,14 +2,14 @@ import Foundation
 
 /// External configuration loaded from `scipio-manager.json` next to the app bundle.
 ///
-/// The config file allows customizing:
-/// - Scipio project directory path
-/// - GCS bucket settings (name, endpoint, prefix, region)
-/// - HMAC credentials file name
-/// - DerivedData prefix for cleanup
-/// - Custom fork GitHub organizations (for badge display)
+/// **Only `bucket.name` is required.** Everything else is auto-detected or has sensible defaults:
+/// - `scipio_path`: Auto-detected from the app bundle location
+/// - `bucket.endpoint`, `bucket.storage_prefix`, `bucket.region`: GCS defaults
+/// - `hmac_key_filename`: Defaults to `"gcs-hmac.json"`
+/// - `derived_data_prefix`: Auto-detected from `.xcworkspace` / `.xcodeproj` name
+/// - `fork_organizations`: Defaults to empty
 ///
-/// If no config file is found, the app uses sensible defaults and prompts for setup in Settings.
+/// If no config file is found, the app uses defaults and prompts for setup in Settings.
 struct AppConfig: Codable, Sendable {
 
     // MARK: - Project
@@ -31,9 +31,9 @@ struct AppConfig: Codable, Sendable {
 
     // MARK: - Cleanup
 
-    /// DerivedData directory prefix used by your Xcode project (e.g., `"MyApp-"`).
-    /// Used to identify project-specific DerivedData folders for targeted cleanup.
-    /// If `nil`, all DerivedData folders are eligible for cleanup.
+    /// DerivedData directory prefix override (e.g., `"MyApp-"`).
+    /// **Auto-detected** from the `.xcworkspace` or `.xcodeproj` name next to the Scipio directory.
+    /// Only set this if auto-detection picks the wrong name.
     var derivedDataPrefix: String?
 
     // MARK: - Dependencies
@@ -150,8 +150,21 @@ struct AppConfig: Codable, Sendable {
         try data.write(to: url, options: .atomic)
     }
 
-    /// Generate a sample config file content for documentation.
+    /// Generate a minimal sample config file content for documentation.
+    ///
+    /// Only the bucket name is required — everything else is auto-detected or has sensible defaults.
     static var sampleJSON: String {
+        """
+        {
+          "bucket": {
+            "name": "your-bucket-name"
+          }
+        }
+        """
+    }
+
+    /// Generate a fully-expanded sample config file content showing all available options.
+    static var fullSampleJSON: String {
         let sample = AppConfig(
             scipioPath: "/path/to/your/project/Scipio",
             bucket: BucketSettings(
