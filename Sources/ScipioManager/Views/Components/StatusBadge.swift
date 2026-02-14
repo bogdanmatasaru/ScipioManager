@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - Status Badge
+
 struct StatusBadge: View {
     let status: CacheStatus
 
@@ -23,6 +25,37 @@ struct StatusBadge: View {
         }
     }
 }
+
+// MARK: - Stat Card (Dashboard)
+
+struct StatCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    var tint: Color = .accentColor
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(tint)
+
+            Text(value)
+                .font(.system(.title2, design: .rounded, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+// MARK: - Action Button
 
 struct ActionButton: View {
     let title: String
@@ -64,30 +97,7 @@ struct ActionButton: View {
     }
 }
 
-struct HeroCard: View {
-    let title: String
-    let value: String
-    let icon: String
-    var color: Color = .accentColor
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color)
-            Text(value)
-                .font(.title)
-                .fontWeight(.bold)
-                .fontDesign(.rounded)
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-    }
-}
+// MARK: - Log Console
 
 struct LogConsoleView: View {
     let lines: [LogLine]
@@ -96,48 +106,55 @@ struct LogConsoleView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Console Output")
-                    .font(.headline)
+                Label("Console", systemImage: "terminal")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Toggle("Auto-scroll", isOn: $autoScroll)
                     .toggleStyle(.switch)
-                    .controlSize(.small)
+                    .controlSize(.mini)
+                    .labelsHidden()
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-
-            Divider()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 1) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(lines) { line in
-                            HStack(spacing: 4) {
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
                                 Text(timeString(line.timestamp))
                                     .font(.system(.caption2, design: .monospaced))
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(.quaternary)
+                                    .frame(width: 50, alignment: .trailing)
                                 Text(line.text)
                                     .font(.system(.caption, design: .monospaced))
                                     .foregroundStyle(line.stream == .stderr ? .red : .primary)
                                     .textSelection(.enabled)
                             }
                             .id(line.id)
-                            .padding(.horizontal, 8)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 1)
                         }
                     }
                     .padding(.vertical, 4)
                 }
-                .background(.black.opacity(0.03))
                 .onChange(of: lines.count) {
                     if autoScroll, let last = lines.last {
-                        withAnimation(.easeOut(duration: 0.15)) {
+                        withAnimation(.easeOut(duration: 0.1)) {
                             proxy.scrollTo(last.id, anchor: .bottom)
                         }
                     }
                 }
             }
         }
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .background(.black.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(.quaternary, lineWidth: 0.5)
+        )
     }
 
     private func timeString(_ date: Date) -> String {
@@ -147,6 +164,21 @@ struct LogConsoleView: View {
     }
 }
 
+// MARK: - Hero Card (kept for backward compat but unused)
+
+struct HeroCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    var color: Color = .accentColor
+
+    var body: some View {
+        StatCard(title: title, value: value, icon: icon, tint: color)
+    }
+}
+
+// MARK: - Cache Layer Card
+
 struct CacheLayerCard: View {
     let name: String
     let icon: String
@@ -155,19 +187,20 @@ struct CacheLayerCard: View {
     var isPresent: Bool = true
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.title3)
-                .foregroundStyle(isPresent ? .green : .secondary)
-                .frame(width: 30)
+                .foregroundStyle(isPresent ? .secondary : .quaternary)
+                .frame(width: 24)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(name)
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Text(detail)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
             }
 
             Spacer()
@@ -177,7 +210,6 @@ struct CacheLayerCard: View {
                 .fontDesign(.monospaced)
                 .foregroundStyle(.secondary)
         }
-        .padding(10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.vertical, 6)
     }
 }

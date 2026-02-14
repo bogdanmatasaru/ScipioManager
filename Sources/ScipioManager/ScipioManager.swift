@@ -8,13 +8,13 @@ struct ScipioManagerApp: App {
         WindowGroup {
             ContentView()
                 .environment(appState)
-                .frame(minWidth: 900, minHeight: 600)
+                .frame(minWidth: 800, minHeight: 500)
                 .onAppear {
                     appState.detectProjectPaths()
                 }
         }
         .windowStyle(.titleBar)
-        .defaultSize(width: 1100, height: 750)
+        .defaultSize(width: 1000, height: 680)
 
         #if os(macOS)
         Settings {
@@ -36,6 +36,7 @@ struct ContentView: View {
         } detail: {
             detailView(for: appState.selectedSection)
         }
+        .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
     }
 
     @ViewBuilder

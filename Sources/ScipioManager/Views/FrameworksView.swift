@@ -21,7 +21,7 @@ struct FrameworksView: View {
     var body: some View {
         HSplitView {
             frameworkList
-                .frame(minWidth: 300)
+                .frame(minWidth: 260, idealWidth: 320, maxWidth: 400)
 
             if let fw = selectedFramework {
                 FrameworkDetailView(framework: fw, dependencies: dependencies)
@@ -31,23 +31,25 @@ struct FrameworksView: View {
                     systemImage: "shippingbox",
                     description: Text("Choose a framework from the list to see details.")
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .navigationTitle("Frameworks (\(frameworks.count))")
-        .searchable(text: $searchText, prompt: "Filter frameworks...")
+        .navigationTitle("Frameworks")
+        .navigationSubtitle("\(frameworks.count) total")
+        .searchable(text: $searchText, prompt: "Filter...")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showAddSheet = true
-                } label: {
-                    Label("Add Framework", systemImage: "plus")
-                }
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    Task { await loadFrameworks() }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                HStack(spacing: 4) {
+                    Button {
+                        Task { await loadFrameworks() }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
+                    Button {
+                        showAddSheet = true
+                    } label: {
+                        Label("Add", systemImage: "plus")
+                    }
                 }
             }
         }
@@ -69,12 +71,13 @@ struct FrameworksView: View {
         .task { await loadFrameworks() }
     }
 
+    // MARK: - Framework List
+
     private var frameworkList: some View {
         List(filteredFrameworks, selection: $selectedFramework) { fw in
-            HStack {
+            HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(fw.displayName)
-                        .font(.body)
                         .fontWeight(.medium)
                     if let version = fw.version {
                         Text(version)
@@ -85,22 +88,26 @@ struct FrameworksView: View {
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(fw.sizeFormatted)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    HStack(spacing: 2) {
-                        ForEach(fw.slices, id: \.identifier) { slice in
-                            Image(systemName: slice.identifier.contains("simulator") ? "desktopcomputer" : "iphone")
-                                .font(.caption2)
-                                .foregroundStyle(.green)
-                        }
-                    }
+                Text(fw.sizeFormatted)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .fontDesign(.monospaced)
+
+                // Slice indicator dots
+                HStack(spacing: 3) {
+                    let hasDevice = fw.slices.contains { !$0.identifier.contains("simulator") }
+                    let hasSim = fw.slices.contains { $0.identifier.contains("simulator") }
+                    Circle()
+                        .fill(hasDevice ? .green : .red.opacity(0.4))
+                        .frame(width: 6, height: 6)
+                    Circle()
+                        .fill(hasSim ? .blue : .red.opacity(0.4))
+                        .frame(width: 6, height: 6)
                 }
             }
             .padding(.vertical, 2)
             .contextMenu {
-                Button("Remove") {
+                Button("Remove...") {
                     frameworkToRemove = fw
                     showRemoveConfirm = true
                 }
@@ -108,6 +115,8 @@ struct FrameworksView: View {
             .tag(fw)
         }
     }
+
+    // MARK: - Logic
 
     private func loadFrameworks() async {
         guard let scipioDir = appState.scipioDir else { return }
@@ -120,7 +129,6 @@ struct FrameworksView: View {
         if let buildPkg = appState.buildPackageURL {
             dependencies = (try? PackageParser.parseDependencies(from: buildPkg)) ?? []
 
-            // Enrich frameworks with dependency info
             frameworks = frameworks.map { fw in
                 var updated = fw
                 if let dep = dependencies.first(where: { d in
@@ -147,7 +155,6 @@ struct FrameworksView: View {
         guard let buildPkg = appState.buildPackageURL,
               let scipioDir = appState.scipioDir else { return }
 
-        // Find the dependency URL for this framework
         if let dep = dependencies.first(where: { d in
             d.products.contains(fw.name) ||
             d.packageName.caseInsensitiveCompare(fw.name) == .orderedSame
@@ -159,7 +166,6 @@ struct FrameworksView: View {
             )
         }
 
-        // Delete the xcframework from disk
         let fwPath = scipioDir
             .appendingPathComponent("Frameworks/XCFrameworks")
             .appendingPathComponent("\(fw.name).xcframework")
@@ -178,33 +184,64 @@ struct FrameworkDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 24) {
                 // Header
-                HStack {
+                HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(framework.displayName)
-                            .font(.title2)
+                            .font(.title)
                             .fontWeight(.bold)
                         if let version = framework.version {
-                            Text("Version: \(version)")
+                            Text("v\(version)")
+                                .font(.title3)
                                 .foregroundStyle(.secondary)
                         }
                     }
                     Spacer()
                     Text(framework.source.rawValue)
                         .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(framework.source == .fork ? .orange.opacity(0.2) : .blue.opacity(0.2),
-                                    in: Capsule())
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            framework.source == .fork ? .orange.opacity(0.15) : .blue.opacity(0.1),
+                            in: Capsule()
+                        )
+                        .foregroundStyle(framework.source == .fork ? .orange : .blue)
                 }
+
+                // Info grid
+                Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
+                    GridRow {
+                        Text("Size").foregroundStyle(.secondary)
+                        Text(framework.sizeFormatted)
+                    }
+                    if let url = framework.url {
+                        GridRow {
+                            Text("Repository").foregroundStyle(.secondary)
+                            Link(url, destination: URL(string: url)!)
+                                .font(.callout)
+                                .lineLimit(1)
+                        }
+                    }
+                    GridRow {
+                        Text("XCFramework").foregroundStyle(.secondary)
+                        Text("\(framework.name).xcframework")
+                            .fontDesign(.monospaced)
+                            .font(.callout)
+                    }
+                }
+                .font(.body)
 
                 Divider()
 
-                // Slices
-                GroupBox("Architecture Slices") {
+                // Architecture slices
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Architecture Slices")
+                        .font(.headline)
+
                     ForEach(framework.slices, id: \.identifier) { slice in
-                        HStack {
+                        HStack(spacing: 10) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
                             Text(slice.identifier)
@@ -212,27 +249,14 @@ struct FrameworkDetailView: View {
                             Spacer()
                             Text(slice.platform)
                                 .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-
-                // Info
-                GroupBox("Details") {
-                    LabeledContent("Size", value: framework.sizeFormatted)
-                    if let url = framework.url {
-                        LabeledContent("Repository") {
-                            Link(url, destination: URL(string: url)!)
-                                .font(.caption)
+                                .font(.callout)
                         }
                     }
-                    LabeledContent("XCFramework", value: "\(framework.name).xcframework")
                 }
-
-                Spacer()
             }
-            .padding()
+            .padding(24)
         }
+        .navigationTitle(framework.displayName)
     }
 }
 
@@ -251,10 +275,16 @@ struct AddFrameworkSheet: View {
     var onComplete: () async -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Add Framework")
-                .font(.title2)
-                .fontWeight(.bold)
+        VStack(spacing: 0) {
+            VStack(spacing: 4) {
+                Text("Add Framework")
+                    .font(.headline)
+                Text("Add a new SPM dependency to Build/Package.swift")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 20)
+            .padding(.bottom, 12)
 
             Form {
                 TextField("Repository URL", text: $url, prompt: Text("https://github.com/..."))
@@ -293,9 +323,9 @@ struct AddFrameworkSheet: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(url.isEmpty || version.isEmpty || productName.isEmpty)
             }
+            .padding(20)
         }
-        .padding()
-        .frame(width: 450)
+        .frame(width: 440)
     }
 
     private func addFramework() async {

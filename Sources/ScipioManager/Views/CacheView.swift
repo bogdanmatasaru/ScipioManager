@@ -4,22 +4,25 @@ struct CacheView: View {
     @Environment(AppState.self) private var appState
     @State private var cacheLocations: [LocalCacheService.CacheLocation] = []
     @State private var showNuclearConfirm = false
-    @State private var nuclearResult: LocalCacheService.NuclearCleanResult?
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 24) {
                 cacheLayers
-                syncControls
-                if !appState.logLines.isEmpty {
-                    LogConsoleView(lines: appState.logLines)
-                        .frame(minHeight: 200, maxHeight: 300)
-                }
-                nuclearSection
+                storageLocations
             }
-            .padding()
+            .padding(24)
         }
-        .navigationTitle("Cache Management")
+        .navigationTitle("Cache")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    loadCaches()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+            }
+        }
         .task { loadCaches() }
         .alert("Nuclear Clean", isPresented: $showNuclearConfirm) {
             Button("Cancel", role: .cancel) {}
@@ -27,84 +30,115 @@ struct CacheView: View {
                 Task { await performNuclearClean() }
             }
         } message: {
-            Text("This will delete DerivedData, SPM artifacts, all XCFrameworks, and SourcePackages. You will need to run Sync to rebuild.")
+            Text("This will delete DerivedData, SPM artifacts, all XCFrameworks, and SourcePackages. You will need to re-sync.")
         }
     }
 
     // MARK: - Cache Layers
 
     private var cacheLayers: some View {
-        GroupBox("Cache Layers (3-tier)") {
-            VStack(spacing: 8) {
-                let projectCache = cacheLocations.first { $0.id == "project-xcframeworks" }
-                CacheLayerCard(
-                    name: "Layer 1: Project (XCFrameworks/)",
-                    icon: "folder",
-                    detail: projectCache?.path.path ?? "N/A",
-                    size: projectCache?.sizeFormatted ?? "0 KB",
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Cache Architecture")
+                .font(.headline)
+
+            let projectCache = cacheLocations.first { $0.id == "project-xcframeworks" }
+            let localCache = cacheLocations.first { $0.id == "scipio-local" }
+
+            VStack(spacing: 0) {
+                layerRow(
+                    number: "1",
+                    name: "Project",
+                    detail: "Frameworks/XCFrameworks/",
+                    size: projectCache?.sizeFormatted ?? "--",
                     isPresent: projectCache?.exists ?? false
                 )
-
-                let localCache = cacheLocations.first { $0.id == "scipio-local" }
-                CacheLayerCard(
-                    name: "Layer 2: Local Disk (~/.cache/Scipio)",
-                    icon: "internaldrive",
-                    detail: localCache?.path.path ?? "N/A",
-                    size: localCache?.sizeFormatted ?? "0 KB",
+                Divider().padding(.leading, 40)
+                layerRow(
+                    number: "2",
+                    name: "Local Disk",
+                    detail: "~/.cache/Scipio/",
+                    size: localCache?.sizeFormatted ?? "--",
                     isPresent: localCache?.exists ?? false
                 )
-
-                CacheLayerCard(
-                    name: "Layer 3: GCS Remote (emag-ios-scipio-cache)",
-                    icon: "cloud",
-                    detail: "See GCS Bucket tab for details",
-                    size: "Remote",
+                Divider().padding(.leading, 40)
+                layerRow(
+                    number: "3",
+                    name: "GCS Remote",
+                    detail: "emag-ios-scipio-cache",
+                    size: "Cloud",
                     isPresent: true
                 )
             }
-            .padding(.vertical, 4)
+            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
 
-    private var syncControls: some View {
-        GroupBox("Sync Operations") {
-            HStack(spacing: 12) {
-                ActionButton("Consumer (Download)", icon: "arrow.down.circle", isRunning: appState.isRunning) {
-                    await runSync(mode: .consumerOnly)
-                }
-                .buttonStyle(.borderedProminent)
+    private func layerRow(number: String, name: String, detail: String, size: String, isPresent: Bool) -> some View {
+        HStack(spacing: 12) {
+            Text(number)
+                .font(.system(.caption, design: .rounded, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .background(isPresent ? Color.accentColor : .gray, in: Circle())
 
-                ActionButton("Producer + Consumer (Build + Cache)", icon: "hammer", isRunning: appState.isRunning) {
-                    await runSync(mode: .producerAndConsumer)
-                }
-                .buttonStyle(.bordered)
-
-                Spacer()
+            VStack(alignment: .leading, spacing: 1) {
+                Text(name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .fontDesign(.monospaced)
             }
-            .padding(.vertical, 4)
+
+            Spacer()
+
+            Text(size)
+                .font(.subheadline)
+                .fontDesign(.monospaced)
+                .foregroundStyle(.secondary)
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 
-    private var nuclearSection: some View {
-        GroupBox("Cleanup") {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(cacheLocations, id: \.id) { loc in
-                    HStack {
+    // MARK: - Storage Locations
+
+    private var storageLocations: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Storage Locations")
+                    .font(.headline)
+                Spacer()
+                Button(role: .destructive) {
+                    showNuclearConfirm = true
+                } label: {
+                    Label("Clean All", systemImage: "trash")
+                }
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                .tint(.red)
+            }
+
+            VStack(spacing: 0) {
+                ForEach(Array(cacheLocations.enumerated()), id: \.element.id) { index, loc in
+                    HStack(spacing: 10) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(loc.name)
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                             Text(loc.description)
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(2)
                         }
 
                         Spacer()
 
-                        Text(loc.exists ? loc.sizeFormatted : "N/A")
+                        Text(loc.exists ? loc.sizeFormatted : "--")
                             .font(.subheadline)
                             .fontDesign(.monospaced)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(loc.exists ? .secondary : .quaternary)
 
                         Button("Clean") {
                             Task { await cleanLocation(loc) }
@@ -113,21 +147,15 @@ struct CacheView: View {
                         .controlSize(.small)
                         .disabled(!loc.exists)
                     }
-                    Divider()
-                }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
 
-                HStack {
-                    Spacer()
-                    Button(role: .destructive) {
-                        showNuclearConfirm = true
-                    } label: {
-                        Label("Nuclear Clean (Everything)", systemImage: "trash")
+                    if index < cacheLocations.count - 1 {
+                        Divider().padding(.leading, 14)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
                 }
             }
-            .padding(.vertical, 4)
+            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
 
@@ -136,27 +164,6 @@ struct CacheView: View {
     private func loadCaches() {
         guard let scipioDir = appState.scipioDir else { return }
         cacheLocations = LocalCacheService.discoverCaches(scipioDir: scipioDir)
-    }
-
-    private func runSync(mode: ScipioService.SyncMode) async {
-        guard let scipioDir = appState.scipioDir else { return }
-        appState.isRunning = true
-        appState.clearLog()
-        defer { appState.isRunning = false }
-
-        let service = ScipioService(scipioDir: scipioDir)
-        do {
-            let result = try await service.sync(mode: mode, verbose: true) { line, stream in
-                Task { @MainActor in
-                    appState.appendLog(line, stream: stream)
-                }
-            }
-            appState.lastSyncDate = Date()
-            appState.addActivity("Synced \(result.frameworkCount) frameworks in \(result.elapsedFormatted)", type: .success)
-            loadCaches()
-        } catch {
-            appState.addActivity("Sync failed: \(error.localizedDescription)", type: .error)
-        }
     }
 
     private func cleanLocation(_ loc: LocalCacheService.CacheLocation) async {
@@ -176,8 +183,7 @@ struct CacheView: View {
         guard let scipioDir = appState.scipioDir else { return }
         do {
             let result = try LocalCacheService.nuclearClean(scipioDir: scipioDir)
-            nuclearResult = result
-            appState.addActivity("Nuclear clean complete: freed \(result.totalSizeFormatted)", type: .success)
+            appState.addActivity("Nuclear clean: freed \(result.totalSizeFormatted)", type: .success)
             loadCaches()
         } catch {
             appState.addActivity("Nuclear clean failed: \(error.localizedDescription)", type: .error)

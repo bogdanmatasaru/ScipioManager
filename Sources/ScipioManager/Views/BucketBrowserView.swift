@@ -31,33 +31,18 @@ struct BucketBrowserView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let stats {
-                statsBar(stats)
-            }
-
             if let error {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                    Text(error)
-                        .font(.callout)
-                    Spacer()
-                    Button("Retry") { Task { await loadEntries() } }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                }
-                .padding()
-                .background(.red.opacity(0.05))
+                errorBanner(error)
             }
 
-            if isLoading {
-                ProgressView("Loading bucket contents...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if isLoading && entries.isEmpty {
+                loadingView
             } else {
                 content
             }
         }
         .navigationTitle("GCS Bucket")
+        .navigationSubtitle(subtitleText)
         .searchable(text: $searchText, prompt: "Filter...")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -67,6 +52,7 @@ struct BucketBrowserView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                .frame(width: 200)
             }
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -111,19 +97,40 @@ struct BucketBrowserView: View {
         .task { await loadEntries() }
     }
 
-    // MARK: - Stats Bar
+    private var subtitleText: String {
+        guard let stats else { return "" }
+        return "\(stats.totalEntries) entries -- \(stats.totalSizeFormatted) -- \(stats.frameworkCount) frameworks"
+    }
 
-    private func statsBar(_ stats: BucketStats) -> some View {
-        HStack(spacing: 20) {
-            Label("\(stats.totalEntries) entries", systemImage: "doc.on.doc")
-            Label(stats.totalSizeFormatted, systemImage: "internaldrive")
-            Label("\(stats.frameworkCount) frameworks", systemImage: "shippingbox")
+    // MARK: - Error Banner
+
+    private func errorBanner(_ message: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+            Text(message)
+                .font(.callout)
+                .lineLimit(2)
             Spacer()
+            Button("Retry") { Task { await loadEntries() } }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
         }
-        .font(.callout)
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(.bar)
+        .padding(12)
+        .background(.red.opacity(0.06))
+    }
+
+    // MARK: - Loading
+
+    private var loadingView: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Loading bucket contents...")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Content
@@ -151,7 +158,7 @@ struct BucketBrowserView: View {
                             .fontWeight(.medium)
                         Spacer()
                         Text("\(group.entryCount) versions")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.tertiary)
                             .font(.caption)
                         Text(group.totalSizeFormatted)
                             .foregroundStyle(.secondary)
@@ -191,9 +198,10 @@ struct BucketBrowserView: View {
     }
 
     private func entryRow(_ entry: CacheEntry) -> some View {
-        HStack {
+        HStack(spacing: 8) {
             Text(entry.cacheHash)
                 .font(.system(.caption, design: .monospaced))
+                .lineLimit(1)
             Spacer()
             Text(entry.sizeFormatted)
                 .font(.caption)
@@ -201,13 +209,6 @@ struct BucketBrowserView: View {
             Text(entry.lastModifiedFormatted)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-            Button(role: .destructive) {
-                Task { await deleteSingle(entry) }
-            } label: {
-                Image(systemName: "trash")
-                    .font(.caption)
-            }
-            .buttonStyle(.borderless)
         }
     }
 
@@ -215,7 +216,7 @@ struct BucketBrowserView: View {
 
     private func loadEntries() async {
         guard let hmacURL = appState.hmacKeyURL else {
-            error = "HMAC key path not configured. Go to Settings to configure."
+            error = "HMAC key not configured. Go to Settings."
             return
         }
 
@@ -236,8 +237,8 @@ struct BucketBrowserView: View {
                 .sorted { $0.name < $1.name }
 
             appState.addActivity("Loaded \(entries.count) bucket entries", type: .info)
-        } catch let loadError as HMACKeyLoader.LoadError {
-            self.error = "Credentials missing. Ask your team for the gcs-hmac.json file and place it in the Scipio/ folder. Then go to Settings > HMAC Credentials."
+        } catch is HMACKeyLoader.LoadError {
+            self.error = "GCS credentials missing. Go to Settings to configure."
             appState.addActivity("GCS credentials not found", type: .error)
         } catch {
             self.error = error.localizedDescription
@@ -270,19 +271,6 @@ struct BucketBrowserView: View {
             await loadEntries()
         } catch {
             appState.addActivity("Stale cleanup failed: \(error.localizedDescription)", type: .error)
-        }
-    }
-
-    private func deleteSingle(_ entry: CacheEntry) async {
-        guard let hmacURL = appState.hmacKeyURL else { return }
-        do {
-            let hmac = try HMACKeyLoader.load(from: hmacURL)
-            let service = GCSBucketService(hmacKey: hmac, config: appState.bucketConfig)
-            try await service.deleteObject(key: entry.key)
-            appState.addActivity("Deleted \(entry.frameworkName)/\(entry.cacheHash)", type: .info)
-            await loadEntries()
-        } catch {
-            appState.addActivity("Delete failed: \(error.localizedDescription)", type: .error)
         }
     }
 }

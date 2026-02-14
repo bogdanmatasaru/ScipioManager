@@ -4,125 +4,151 @@ struct DashboardView: View {
     @Environment(AppState.self) private var appState
     @State private var frameworkCount = 0
     @State private var totalSize: Int64 = 0
-    @State private var cacheLocations: [LocalCacheService.CacheLocation] = []
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
-                headerSection
-                heroCards
-                quickActions
+            VStack(alignment: .leading, spacing: 24) {
+                // Warning banner if no project detected
+                if appState.scipioDir == nil {
+                    notConfiguredBanner
+                }
+
+                // Stats row
+                statsRow
+
+                // Primary Actions
+                actionRow
+
+                // Console (only when there's output)
                 if !appState.logLines.isEmpty {
                     LogConsoleView(lines: appState.logLines)
-                        .frame(minHeight: 200, maxHeight: 300)
+                        .frame(minHeight: 180, maxHeight: 280)
                 }
-                activitySection
+
+                // Recent Activity
+                if !appState.recentActivities.isEmpty {
+                    activitySection
+                }
             }
-            .padding()
+            .padding(24)
         }
         .navigationTitle("Dashboard")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    Task { await loadData() }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+            }
+        }
         .task { await loadData() }
     }
 
-    // MARK: - Sections
+    // MARK: - Not Configured
 
-    private var headerSection: some View {
-        VStack(spacing: 4) {
-            if let dir = appState.scipioDir {
-                HStack {
-                    Image(systemName: "folder")
-                        .foregroundStyle(.secondary)
-                    Text(dir.path)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                    Text("Scipio directory not detected. Open Settings to configure.")
-                        .font(.callout)
-                }
-                .padding(8)
-                .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+    private var notConfiguredBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Scipio directory not detected")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text("Go to Settings to configure your project path.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+            Spacer()
         }
+        .padding(12)
+        .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    private var heroCards: some View {
+    // MARK: - Stats
+
+    private var statsRow: some View {
         HStack(spacing: 12) {
-            HeroCard(
+            StatCard(
                 title: "Frameworks",
                 value: "\(frameworkCount)",
                 icon: "shippingbox",
-                color: .blue
+                tint: .blue
             )
-            HeroCard(
+            StatCard(
                 title: "Disk Usage",
                 value: ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file),
                 icon: "internaldrive",
-                color: .purple
+                tint: .purple
             )
-            HeroCard(
+            StatCard(
                 title: "Last Sync",
                 value: lastSyncText,
                 icon: "clock",
-                color: .green
+                tint: .green
             )
-            HeroCard(
+            StatCard(
                 title: "Status",
                 value: appState.isRunning ? "Running" : "Ready",
                 icon: appState.isRunning ? "hourglass" : "checkmark.circle",
-                color: appState.isRunning ? .orange : .green
+                tint: appState.isRunning ? .orange : .green
             )
         }
     }
 
-    private var quickActions: some View {
-        GroupBox("Actions") {
-            HStack(spacing: 12) {
-                ActionButton("Sync (Download)", icon: "arrow.down.circle", isRunning: appState.isRunning) {
-                    await runSync(mode: .consumerOnly)
-                }
-                .buttonStyle(.borderedProminent)
+    // MARK: - Actions
 
-                ActionButton("Full Build + Cache", icon: "hammer", isRunning: appState.isRunning) {
-                    await runSync(mode: .producerAndConsumer)
-                }
-                .buttonStyle(.bordered)
-
-                ActionButton("Refresh Status", icon: "arrow.clockwise") {
-                    await loadData()
-                }
-                .buttonStyle(.bordered)
-
-                Spacer()
+    private var actionRow: some View {
+        HStack(spacing: 10) {
+            ActionButton("Sync (Download)", icon: "arrow.down.circle", isRunning: appState.isRunning) {
+                await runSync(mode: .consumerOnly)
             }
-            .padding(.vertical, 4)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+
+            ActionButton("Full Build + Cache", icon: "hammer", isRunning: appState.isRunning) {
+                await runSync(mode: .producerAndConsumer)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+
+            Spacer()
         }
     }
 
+    // MARK: - Activity
+
     private var activitySection: some View {
-        Group {
-            if !appState.recentActivities.isEmpty {
-                GroupBox("Recent Activity") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(appState.recentActivities.prefix(10)) { activity in
-                            HStack(spacing: 8) {
-                                Image(systemName: activity.icon)
-                                    .foregroundStyle(activityColor(activity.type))
-                                Text(activity.message)
-                                    .font(.callout)
-                                Spacer()
-                                Text(activity.timestamp, style: .relative)
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Recent Activity")
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 0) {
+                ForEach(appState.recentActivities.prefix(8)) { activity in
+                    HStack(spacing: 8) {
+                        Image(systemName: activity.icon)
+                            .font(.caption)
+                            .foregroundStyle(activityColor(activity.type))
+                            .frame(width: 16)
+                        Text(activity.message)
+                            .font(.callout)
+                            .lineLimit(1)
+                        Spacer()
+                        Text(activity.timestamp, style: .relative)
+                            .font(.caption2)
+                            .foregroundStyle(.quaternary)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 10)
+
+                    if activity.id != appState.recentActivities.prefix(8).last?.id {
+                        Divider().padding(.leading, 34)
+                    }
                 }
             }
+            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
 
@@ -139,9 +165,8 @@ struct DashboardView: View {
         guard let scipioDir = appState.scipioDir else { return }
         let service = ScipioService(scipioDir: scipioDir)
         frameworkCount = await service.frameworkCount()
-        cacheLocations = LocalCacheService.discoverCaches(scipioDir: scipioDir)
-        totalSize = cacheLocations
-            .first { $0.id == "project-xcframeworks" }?.size ?? 0
+        let locations = LocalCacheService.discoverCaches(scipioDir: scipioDir)
+        totalSize = locations.first { $0.id == "project-xcframeworks" }?.size ?? 0
     }
 
     private func runSync(mode: ScipioService.SyncMode) async {
