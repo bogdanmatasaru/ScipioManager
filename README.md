@@ -268,7 +268,7 @@ ScipioManager/
 │       ├── SidebarView.swift         # Navigation sidebar
 │       └── Components/
 │           └── StatusBadge.swift     # Reusable status indicators
-├── Tests/ScipioManagerTests/         # 232+ unit tests
+├── Tests/ScipioManagerTests/         # 240+ unit tests
 │   ├── AppConfigTests.swift
 │   ├── PackageParserTests.swift
 │   ├── LocalCacheServiceTests.swift
