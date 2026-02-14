@@ -215,7 +215,7 @@ struct BucketBrowserView: View {
 
     private func loadEntries() async {
         guard let hmacURL = appState.hmacKeyURL else {
-            error = "HMAC key path not configured"
+            error = "HMAC key path not configured. Go to Settings to configure."
             return
         }
 
@@ -236,6 +236,9 @@ struct BucketBrowserView: View {
                 .sorted { $0.name < $1.name }
 
             appState.addActivity("Loaded \(entries.count) bucket entries", type: .info)
+        } catch let loadError as HMACKeyLoader.LoadError {
+            self.error = "Credentials missing. Ask your team for the gcs-hmac.json file and place it in the Scipio/ folder. Then go to Settings > HMAC Credentials."
+            appState.addActivity("GCS credentials not found", type: .error)
         } catch {
             self.error = error.localizedDescription
             appState.addActivity("Failed to load bucket: \(error.localizedDescription)", type: .error)

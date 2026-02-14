@@ -37,10 +37,7 @@ struct S3Signer: Sendable {
 
         // Canonical URI and query
         let canonicalURI = url.path.isEmpty ? "/" : url.path
-        let canonicalQueryString = url.query?
-            .split(separator: "&")
-            .sorted()
-            .joined(separator: "&") ?? ""
+        let canonicalQueryString = Self.canonicalQueryString(from: url)
 
         // Canonical request
         let canonicalRequest = [
@@ -73,6 +70,20 @@ struct S3Signer: Sendable {
     }
 
     // MARK: - Private
+
+    /// Build the canonical query string per AWS SigV4 spec.
+    /// Reads the raw percent-encoded query from the URL, splits, sorts, and joins.
+    /// The caller is responsible for pre-encoding values with s3Encode().
+    private static func canonicalQueryString(from url: URL) -> String {
+        // Use the raw query string which should already be percent-encoded
+        guard let rawQuery = url.query, !rawQuery.isEmpty else {
+            return ""
+        }
+        return rawQuery
+            .split(separator: "&")
+            .sorted()
+            .joined(separator: "&")
+    }
 
     private func deriveSigningKey(dateStamp: String) -> SymmetricKey {
         let kDate = hmacSHA256(

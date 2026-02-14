@@ -43,18 +43,22 @@ actor GCSBucketService {
         prefix: String,
         continuationToken: String? = nil
     ) async throws -> ([CacheEntry], String?) {
-        var urlComponents = URLComponents(url: endpoint.appendingPathComponent(bucketName), resolvingAgainstBaseURL: false)!
-        var queryItems = [
-            URLQueryItem(name: "list-type", value: "2"),
-            URLQueryItem(name: "prefix", value: prefix),
-            URLQueryItem(name: "max-keys", value: "1000"),
+        // Build the URL with percent-encoded query for proper S3 signing
+        var parts = [
+            "list-type=2",
+            "max-keys=1000",
+            "prefix=\(Self.s3Encode(prefix))",
         ]
         if let token = continuationToken {
-            queryItems.append(URLQueryItem(name: "continuation-token", value: token))
+            parts.append("continuation-token=\(Self.s3Encode(token))")
         }
-        urlComponents.queryItems = queryItems
+        let query = parts.sorted().joined(separator: "&")
+        let urlString = "\(endpoint.absoluteString)/\(bucketName)?\(query)"
+        guard let url = URL(string: urlString) else {
+            throw GCSError.listFailed(statusCode: 0)
+        }
 
-        var request = URLRequest(url: urlComponents.url!)
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         signer.sign(&request)
 
@@ -70,9 +74,11 @@ actor GCSBucketService {
 
     /// Delete a single object from the bucket.
     func deleteObject(key: String) async throws {
-        let url = endpoint
-            .appendingPathComponent(bucketName)
-            .appendingPathComponent(key)
+        let encodedKey = Self.s3EncodePath(key)
+        let urlString = "\(endpoint.absoluteString)/\(bucketName)/\(encodedKey)"
+        guard let url = URL(string: urlString) else {
+            throw GCSError.deleteFailed(key: key, statusCode: 0)
+        }
 
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
@@ -105,7 +111,7 @@ actor GCSBucketService {
 
     /// Delete all entries for a specific framework.
     func deleteFrameworkEntries(frameworkName: String) async throws -> Int {
-        let entries = try await listObjects(prefix: "\(prefix)/\(frameworkName)/")
+        let entries = try await listObjects(prefix: "\(prefix)\(frameworkName)/")
         let result = try await deleteObjects(keys: entries.map(\.key))
         return result.deleted
     }
@@ -122,9 +128,9 @@ actor GCSBucketService {
 
     /// Check if an object exists and return its metadata.
     func headObject(key: String) async throws -> (exists: Bool, size: Int64) {
-        let url = endpoint
-            .appendingPathComponent(bucketName)
-            .appendingPathComponent(key)
+        let encodedKey = Self.s3EncodePath(key)
+        let urlString = "\(endpoint.absoluteString)/\(bucketName)/\(encodedKey)"
+        guard let url = URL(string: urlString) else { return (false, 0) }
 
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
@@ -154,6 +160,23 @@ actor GCSBucketService {
             frameworkCount: grouped.count,
             entries: entries
         )
+    }
+
+    // MARK: - URL Encoding
+
+    /// AWS SigV4-compliant percent encoding for query parameter values.
+    private static func s3Encode(_ value: String) -> String {
+        let allowed = CharacterSet(charactersIn:
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+        )
+        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+    }
+
+    /// Percent-encode a path component, preserving `/`.
+    private static func s3EncodePath(_ value: String) -> String {
+        value.components(separatedBy: "/")
+            .map { s3Encode($0) }
+            .joined(separator: "/")
     }
 
     // MARK: - XML Parsing
