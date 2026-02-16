@@ -79,6 +79,7 @@ actor ScipioService {
             runnerBinaryPath.path,
             arguments: args,
             workingDirectory: scipioDir,
+            environment: ["SCIPIO_DIR": scipioDir.path],
             onOutput: onOutput
         )
 
