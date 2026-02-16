@@ -60,6 +60,24 @@ fi
 # Write PkgInfo
 echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 
+# Step 5: Code sign the .app bundle
+SIGN_IDENTITY="${CODESIGN_IDENTITY:-}"
+if [ -z "$SIGN_IDENTITY" ]; then
+    # Auto-detect first available Apple Development identity
+    SIGN_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
+        | grep "Apple Development" | head -1 \
+        | sed 's/.*"\(.*\)".*/\1/' || true)
+fi
+
+if [ -n "$SIGN_IDENTITY" ]; then
+    echo "[5/5] Code signing with: $SIGN_IDENTITY"
+    codesign --force --sign "$SIGN_IDENTITY" --deep --options runtime "$APP_BUNDLE"
+    echo "  Signed successfully"
+else
+    echo "[5/5] No signing identity found — skipping code sign (app may be blocked by Gatekeeper)"
+    echo "  Set CODESIGN_IDENTITY env var or install an Apple Development certificate"
+fi
+
 echo ""
 echo "=== Build complete ==="
 echo "  $APP_BUNDLE"
