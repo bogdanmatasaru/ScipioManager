@@ -87,7 +87,7 @@ struct DiagnosticsServiceExtTests {
     @Test("Runner binary check fails for nonexistent")
     func runnerMissing() {
         let result = DiagnosticsService.checkRunnerBinary(
-            at: URL(fileURLWithPath: "/tmp/no-runner-\(UUID())")
+            scipioDir: URL(fileURLWithPath: "/tmp/no-runner-\(UUID())")
         )
         #expect(result.passed == false)
         #expect(result.category == .toolchain)

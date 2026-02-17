@@ -84,8 +84,25 @@ final class AppState {
         scipioDir = url
         buildPackageURL = url.appendingPathComponent("Build/Package.swift")
         frameworksDir = url.appendingPathComponent("Frameworks/XCFrameworks")
-        runnerBinaryURL = url.appendingPathComponent("Runner/.build/arm64-apple-macosx/release/ScipioRunner")
+        runnerBinaryURL = Self.resolveRunnerBinary(in: url)
         hmacKeyURL = url.appendingPathComponent(config.hmacKeyFilename)
+    }
+
+    /// Locate the ScipioRunner binary by checking known locations in priority order:
+    /// 1. `Runner/bin/ScipioRunner` — pre-built universal binary (committed to git)
+    /// 2. `Runner/.build/release/ScipioRunner` — built from source (symlink, arch-agnostic)
+    static func resolveRunnerBinary(in scipioDir: URL) -> URL {
+        let candidates = [
+            scipioDir.appendingPathComponent("Runner/bin/ScipioRunner"),
+            scipioDir.appendingPathComponent("Runner/.build/release/ScipioRunner"),
+        ]
+        for candidate in candidates {
+            if ProcessRunner.executableExists(at: candidate.path) {
+                return candidate
+            }
+        }
+        // Default to the pre-built location even if it doesn't exist yet
+        return candidates[0]
     }
 
     /// Auto-detect the DerivedData folder prefix for this project.

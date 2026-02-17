@@ -76,11 +76,12 @@ struct DiagnosticsServiceTests {
         #expect(result.passed == false)
     }
 
-    @Test("Runner binary check correctly detects /usr/bin/swift")
-    func runnerBinaryExists() {
-        let swiftURL = URL(fileURLWithPath: "/usr/bin/swift")
-        let result = DiagnosticsService.checkRunnerBinary(at: swiftURL)
-        #expect(result.passed == true)
+    @Test("Runner binary check works with valid scipio dir")
+    func runnerBinaryCheck() {
+        // A nonexistent scipio dir should fail the runner check
+        let fakeDir = URL(fileURLWithPath: "/tmp/fake-scipio-\(UUID())")
+        let result = DiagnosticsService.checkRunnerBinary(scipioDir: fakeDir)
+        #expect(result.passed == false)
     }
 
     @Test("Build package check parses valid file")

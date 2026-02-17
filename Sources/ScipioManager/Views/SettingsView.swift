@@ -73,7 +73,7 @@ struct SettingsView: View {
                     appState.scipioDir = url
                     appState.buildPackageURL = url.appendingPathComponent("Build/Package.swift")
                     appState.frameworksDir = url.appendingPathComponent("Frameworks/XCFrameworks")
-                    appState.runnerBinaryURL = url.appendingPathComponent("Runner/.build/arm64-apple-macosx/release/ScipioRunner")
+                    appState.runnerBinaryURL = AppState.resolveRunnerBinary(in: url)
                     appState.hmacKeyURL = url.appendingPathComponent(appState.config.hmacKeyFilename)
                 }
                 .buttonStyle(.bordered)

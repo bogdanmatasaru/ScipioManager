@@ -3,7 +3,8 @@ import Foundation
 /// Service for invoking ScipioRunner and cache.sh operations.
 actor ScipioService {
     private let scipioDir: URL
-    private let runnerBinaryPath: URL
+    private let prebuiltBinaryPath: URL
+    private let sourceBuiltBinaryPath: URL
     private let cacheScriptPath: URL
     private let runnerDir: URL
     private let buildDir: URL
@@ -11,12 +12,23 @@ actor ScipioService {
 
     init(scipioDir: URL) {
         self.scipioDir = scipioDir
-        self.runnerBinaryPath = scipioDir
-            .appendingPathComponent("Runner/.build/arm64-apple-macosx/release/ScipioRunner")
+        self.prebuiltBinaryPath = scipioDir.appendingPathComponent("Runner/bin/ScipioRunner")
+        self.sourceBuiltBinaryPath = scipioDir.appendingPathComponent("Runner/.build/release/ScipioRunner")
         self.cacheScriptPath = scipioDir.appendingPathComponent("Scripts/cache.sh")
         self.runnerDir = scipioDir.appendingPathComponent("Runner")
         self.buildDir = scipioDir.appendingPathComponent("Build")
         self.frameworksDir = scipioDir.appendingPathComponent("Frameworks/XCFrameworks")
+    }
+
+    /// Resolved path to the runner binary (pre-built preferred, fallback to source-built).
+    private var runnerBinaryPath: URL {
+        if ProcessRunner.executableExists(at: prebuiltBinaryPath.path) {
+            return prebuiltBinaryPath
+        }
+        if ProcessRunner.executableExists(at: sourceBuiltBinaryPath.path) {
+            return sourceBuiltBinaryPath
+        }
+        return prebuiltBinaryPath
     }
 
     enum SyncMode: String, Sendable {

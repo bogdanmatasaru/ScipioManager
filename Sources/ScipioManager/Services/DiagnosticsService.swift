@@ -10,7 +10,6 @@ struct DiagnosticsService: Sendable {
         let frameworksDir = scipioDir.appendingPathComponent("Frameworks/XCFrameworks")
         let buildPkgURL = scipioDir.appendingPathComponent("Build/Package.swift")
         let hmacURL = scipioDir.appendingPathComponent("gcs-hmac.json")
-        let runnerBin = scipioDir.appendingPathComponent("Runner/.build/arm64-apple-macosx/release/ScipioRunner")
         let resolvedURL = scipioDir.appendingPathComponent("Build/Package.resolved")
 
         // 1. XCFrameworks exist
@@ -25,8 +24,8 @@ struct DiagnosticsService: Sendable {
         // 4. HMAC credentials
         results.append(checkCredentials(hmacURL: hmacURL))
 
-        // 5. Runner binary
-        results.append(checkRunnerBinary(at: runnerBin))
+        // 5. Runner binary (check pre-built first, then source-built)
+        results.append(checkRunnerBinary(scipioDir: scipioDir))
 
         // 6. Package.resolved tracked
         results.append(checkPackageResolved(at: resolvedURL))
@@ -146,12 +145,30 @@ struct DiagnosticsService: Sendable {
         )
     }
 
-    static func checkRunnerBinary(at path: URL) -> DiagnosticResult {
-        let exists = ProcessRunner.executableExists(at: path.path)
+    static func checkRunnerBinary(scipioDir: URL) -> DiagnosticResult {
+        let prebuilt = scipioDir.appendingPathComponent("Runner/bin/ScipioRunner")
+        let sourceBuilt = scipioDir.appendingPathComponent("Runner/.build/release/ScipioRunner")
+
+        if ProcessRunner.executableExists(at: prebuilt.path) {
+            return DiagnosticResult(
+                name: "ScipioRunner Binary",
+                passed: true,
+                detail: "Pre-built binary found at Runner/bin/ScipioRunner",
+                category: .toolchain
+            )
+        }
+        if ProcessRunner.executableExists(at: sourceBuilt.path) {
+            return DiagnosticResult(
+                name: "ScipioRunner Binary",
+                passed: true,
+                detail: "Source-built binary found at Runner/.build/release/ScipioRunner",
+                category: .toolchain
+            )
+        }
         return DiagnosticResult(
             name: "ScipioRunner Binary",
-            passed: exists,
-            detail: exists ? "Found at \(path.lastPathComponent)" : "Not built. Run cache.sh to build.",
+            passed: false,
+            detail: "Not found. Run rebuild-runner.sh or cache.sh to build.",
             category: .toolchain
         )
     }
