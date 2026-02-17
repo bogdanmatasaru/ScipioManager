@@ -132,13 +132,15 @@ View and adjust:
 
 ### 1. Install
 
-**Download** the latest `.app` from [Releases](../../releases), or build from source:
+**Download** the latest signed `.app` from [Releases](../../releases), or build from source:
 
 ```bash
 git clone https://github.com/bogdanmatasaru/ScipioManager.git
 cd ScipioManager
-swift build -c release --arch arm64 --arch x86_64
+./scripts/build-app.sh
 ```
+
+The build script creates a signed universal binary (arm64 + x86_64) `.app` bundle. See [Building a `.app` Bundle](#building-a-app-bundle) for details.
 
 ### 2. Configure
 
@@ -215,7 +217,25 @@ These are [GCS HMAC keys](https://cloud.google.com/storage/docs/authentication/h
 
 ## Building a `.app` Bundle
 
-After building, wrap the binary in a macOS app bundle:
+Use the included build script, which creates a universal binary (arm64 + x86_64), assembles the `.app` bundle, and code-signs automatically:
+
+```bash
+./scripts/build-app.sh
+```
+
+The script auto-detects your signing identity:
+1. **`CODESIGN_IDENTITY`** env var (explicit override)
+2. **"Developer ID Application"** certificate (preferred for distribution)
+3. **"Apple Development"** certificate (fallback for local dev)
+
+To install directly into your project:
+
+```bash
+./scripts/build-app.sh --install /path/to/your/Scipio/Tools
+```
+
+<details>
+<summary>Manual build steps (without the script)</summary>
 
 ```bash
 # Build universal binary
@@ -224,14 +244,22 @@ swift build -c release --arch arm64 --arch x86_64
 # Create .app structure
 APP="ScipioManager.app/Contents"
 mkdir -p "$APP/MacOS" "$APP/Resources"
-cp .build/apple/Products/Release/ScipioManager "$APP/MacOS/"
+lipo -create \
+  .build/arm64-apple-macosx/release/ScipioManager \
+  .build/x86_64-apple-macosx/release/ScipioManager \
+  -output "$APP/MacOS/ScipioManager"
 cp Resources/Info.plist "$APP/"
 cp Resources/AppIcon.icns "$APP/Resources/"
+echo -n "APPL????" > "$APP/PkgInfo"
+
+# Code sign (use your Developer ID certificate)
+codesign --force --sign "Developer ID Application: ..." --deep --options runtime ScipioManager.app
 
 # Place the app + config together
 cp -R ScipioManager.app /path/to/your/Scipio/Tools/
 cp scipio-manager.json /path/to/your/Scipio/Tools/
 ```
+</details>
 
 ---
 
