@@ -61,9 +61,16 @@ fi
 echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 
 # Step 5: Code sign the .app bundle
+# Priority: CODESIGN_IDENTITY env var > Developer ID Application > Apple Development
 SIGN_IDENTITY="${CODESIGN_IDENTITY:-}"
 if [ -z "$SIGN_IDENTITY" ]; then
-    # Auto-detect first available Apple Development identity
+    # Prefer "Developer ID Application" for distribution outside the App Store
+    SIGN_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
+        | grep "Developer ID Application" | head -1 \
+        | sed 's/.*"\(.*\)".*/\1/' || true)
+fi
+if [ -z "$SIGN_IDENTITY" ]; then
+    # Fall back to "Apple Development" for local development
     SIGN_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
         | grep "Apple Development" | head -1 \
         | sed 's/.*"\(.*\)".*/\1/' || true)
@@ -75,7 +82,7 @@ if [ -n "$SIGN_IDENTITY" ]; then
     echo "  Signed successfully"
 else
     echo "[5/5] No signing identity found — skipping code sign (app may be blocked by Gatekeeper)"
-    echo "  Set CODESIGN_IDENTITY env var or install an Apple Development certificate"
+    echo "  Set CODESIGN_IDENTITY env var or install a Developer ID or Apple Development certificate"
 fi
 
 echo ""
